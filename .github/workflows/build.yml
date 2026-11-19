@@ -4,6 +4,8 @@ on:
   push:
     paths-ignore:
       - "Letterfox/**"
+      - "Evergreen/**"
+      - ".github/workflows/evergreen.yml"
       - ".github/workflows/letterfox.yml"
   workflow_dispatch:
 
