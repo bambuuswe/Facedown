@@ -1,0 +1,54 @@
+name: Build Letterfox IPA
+
+on:
+  push:
+    paths:
+      - "Letterfox/**"
+      - ".github/workflows/letterfox.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: Letterfox
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Xcode project
+        run: |
+          which xcodegen || brew install xcodegen
+          xcodegen generate
+
+      - name: Build for iPhone without signing
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Letterfox.xcodeproj \
+            -scheme Letterfox \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" | tee build.log
+
+      - name: Report compile errors
+        if: failure()
+        run: |
+          grep -E "error:" build.log | sort -u | head -n 10 | while IFS= read -r line; do
+            echo "::error::${line}"
+          done
+
+      - name: Package IPA
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/Letterfox.app Payload/
+          zip -qry Letterfox.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Letterfox-unsigned-ipa
+          path: Letterfox/Letterfox.ipa
