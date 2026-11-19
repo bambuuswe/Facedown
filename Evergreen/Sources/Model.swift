@@ -47,6 +47,30 @@ struct Wish: Codable, Equatable {
         return parts.joined(separator: " · ")
     }
 
+    /// The same wish, said the roundabout way some customers prefer.
+    var riddle: String {
+        var parts: [String] = []
+        if let height = height {
+            parts.append(["It has to fit under my low ceiling.", "Not a giant, not a shrub: somewhere in between.", "My parlour ceiling is very high, so think big."][height])
+        }
+        if let fullness = fullness {
+            parts.append(fullness == 0 ? "It must squeeze into a narrow corner." : fullness == 2 ? "I want it to fill the whole window." : "Nothing too skinny, nothing too wide.")
+        }
+        if let crooked = crooked {
+            parts.append(crooked == 1 ? "And give me one with a lean. Perfect trees bore me." : "And my family can't stand a leaning tree.")
+        }
+        return parts.joined(separator: " ")
+    }
+
+    /// One line per wished trait, saying whether the tree got it right.
+    func report(_ tree: TreeTraits) -> String {
+        var parts: [String] = []
+        if let height = height { parts.append("Height " + (height == tree.height ? "✓" : "✗")) }
+        if let fullness = fullness { parts.append("Fullness " + (fullness == tree.fullness ? "✓" : "✗")) }
+        if let crooked = crooked { parts.append("Shape " + (crooked == tree.crooked ? "✓" : "✗")) }
+        return parts.joined(separator: "   ")
+    }
+
     var sentence: String {
         var parts: [String] = []
         if let height = height { parts.append(["short", "medium-sized", "tall"][height]) }
@@ -71,10 +95,18 @@ enum DayPhase: String, Codable {
     case epilogue  // after the great tree is lit
 }
 
+/// Some days are different.
+enum DayEvent {
+    case none
+    case storm    // heavy snow, gloomy light, extra pay
+    case market   // half price at the stalls, a crowd at the market
+    case rush     // deliver before the clock runs out for a bonus
+}
+
 /// Everything that survives between launches.
 struct SaveData: Codable {
     static let lastDay = 12
-    private static let key = "evergreen.save.v1"
+    private static let key = "evergreen.save.v2"
 
     var day = 1
     var phase: DayPhase = .morning
@@ -91,6 +123,36 @@ struct SaveData: Codable {
     var squarePlanted = false
     var squareLit = false
     var finaleTier = 0
+
+    // Things bought at the workbench
+    var axe = false
+    var sledWax = false
+    var boots = false
+    var guide = false
+    var thermos = false
+    var outfit = 0
+    var outfits = [true, false, false]
+
+    // Pockets and friendships
+    var gifts = 0
+    var treats = 0
+    var gifted: [Bool] = []
+    var catFriend = false
+    var sheepFriend = false
+    var deerFriend = false
+
+    static func event(for day: Int) -> DayEvent {
+        switch day {
+        case 3, 9: return .storm
+        case 5, 10: return .market
+        case 7, 11: return .rush
+        default: return .none
+        }
+    }
+
+    static func speaksInRiddles(on day: Int) -> Bool {
+        day == 4 || day == 6 || day == 8
+    }
 
     var litCount: Int { lit.filter { $0 }.count }
 
@@ -125,6 +187,7 @@ struct SaveData: Codable {
         save.lot = Array(save.lot.shuffled().prefix(world.lot.count))
         save.houseOrder = Array(0..<houseCount).shuffled()
         save.houseTrees = [TreeTraits?](repeating: nil, count: houseCount)
+        save.gifted = [Bool](repeating: false, count: houseCount)
         save.lit = [Bool](repeating: false, count: world.lights.count)
         return save
     }
@@ -136,6 +199,8 @@ struct SaveData: Codable {
               save.lot.count == world.lot.count,
               save.lit.count == world.lights.count,
               save.houseTrees.count == world.houses.count,
+              save.gifted.count == world.houses.count,
+              save.outfits.count == 3,
               save.houseOrder.count == world.houses.count,
               save.wishes.count == world.houses.count,
               save.day >= 1, save.day <= SaveData.lastDay else {

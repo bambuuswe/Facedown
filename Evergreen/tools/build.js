@@ -178,10 +178,15 @@ for (let i = 0; i < 260; i++) {
   ground.rect(px, py, 2 + (i % 2), 1, i % 3 ? hex("#e3c15a") : hex("#c9a544"));
 }
 
-// ice is not walkable; bridges and the jetty are
+// the stream is too thin to walk on, but the lake and the pond are for skating
+const skateTile = Array.from({ length: H }, () => Array(W).fill(false));
+const inEllipse = (e, px, py, grow) => ((px - e.x) / (e.rx + grow)) ** 2 + ((py - e.y) / (e.ry + grow)) ** 2 < 1;
 for (let ty = 0; ty < H; ty++) for (let tx = 0; tx < W; tx++) {
   const c = at(tx * T + 8, ty * T + 8);
-  if (c === ICE) block(tx, ty);
+  if (c === ICE) {
+    if (inEllipse(LAKE, tx * T + 8, ty * T + 8, 10) || inEllipse(POND, tx * T + 8, ty * T + 8, 10)) skateTile[ty][tx] = true;
+    else block(tx, ty);
+  }
   if (c !== SNOW) reserved[ty][tx] = true;
 }
 for (const b of BRIDGES) reserve(Math.floor(b.cx / T) - 3, 21, Math.floor(b.cx / T) + 2, 28);
@@ -215,6 +220,7 @@ for (let i = 10; i <= 12; i++) { block(i, 7); block(i, 8); glyph[8][i] = "S"; }
 reserve(3, 3, 15, 12);
 addProp("signpost", 18.2 * T, 10 * T - 2); block(18, 9);
 addProp("crates", 13.8 * T, 9 * T - 1); block(13, 8);
+addProp("workbench", 8.6 * T, 9 * T - 2); block(8, 8);
 
 const HOUSE_SHAPES = ["eave", "gable", "eave", "gable", "eave", "gable", "eave", "gable", "eave", "gable", "eave"];
 const houses = HOUSE_TILES.map(([hx, hy], i) => {
@@ -304,10 +310,10 @@ fireLight("campfire", CAMPFIRE, "campfire", 6, 8);
 fireLight("brazier", BRAZIER, "market brazier", 6, 12);
 addLight("market", 10, "market lights", STALLS.map((sx, i) => ({ sprite: "", lit: `stall_${i % 3}_lit`, x: (sx + 1.5) * T, y: sk(60 * T + 1) })),
   STALLS.map((sx) => ({ x: (sx + 1.5) * T, y: sk(60 * T) + 36, r: 26, c: WARM })),
-  STALLS.map((sx) => ({ x: (sx + 1.5) * T, y: sk(60 * T + 8) })));
+  [{ x: (STALLS[3] + 1.5) * T, y: sk(60 * T + 8) }]);
 addLight("chapel", 10, "chapel windows", [{ sprite: "", lit: "chapel_lit", x: chapelPos.x, y: sk(chapelPos.y) }],
   meta.chapel.glows.map(([gx, up, r], i) => ({ x: chapelPos.x - 48 + gx, y: sk(chapelPos.y) + up, r: r + 8, c: i === 0 ? [1, 0.7, 0.55] : i === 3 ? WARM : [0.7, 0.75, 1] })),
-  [{ x: chapelPos.x, y: sk(71 * T + 8) }]);
+  [{ x: chapelPos.x - 34, y: sk(71 * T + 6) }, { x: chapelPos.x + 34, y: sk(71 * T + 6) }]);
 
 // ------------------------------------------------------------ decoration
 addProp("well", 16.5 * T, 46 * T); block(16, 45); shade(16.5 * T, 46 * T - 1, 11, 2.5);
@@ -365,6 +371,7 @@ const world = {
   width: PW, height: PH, tile: T, cols: W, rows: H,
   solid: grid((tx, ty) => solid[ty][tx]),
   snow: grid((tx, ty) => at(tx * T + 8, ty * T + 8) === SNOW),
+  ice: grid((tx, ty) => skateTile[ty][tx]),
   stroll: grid((tx, ty) => { const c = at(tx * T + 8, ty * T + 8); return ty >= 28 && ty <= 62 && !solid[ty][tx] && (c === PATH || c === COBBLE); }),
   props: props.map((p) => ({ sprite: p.sprite, x: p.x, y: sk(p.y) })),
   houses, lights, lot, vendors,
@@ -378,6 +385,9 @@ const world = {
   sheepZone: zone(PEN.x0 + 1, PEN.y0 + 1, PEN.x1 - 1, PEN.y1 - 1),
   deerZone: zone(39, 3, 54, 20),
   cat: { x: 17.6 * T, y: sk(46 * T + 7) },
+  workshop: { x: 8.6 * T, y: sk(9 * T + 8) },
+  chapelDoor: { x: chapelPos.x, y: sk(71 * T + 8) },
+  stalls: ["treat", "gift", "cocoa"].map((kind, i) => ({ kind, x: (STALLS[i] + 1.5) * T, y: sk(60 * T + 8) })),
   labels: [["Your farm", 8, 3], ["Tree lot", 30, 1], ["Old forest", 46, 6], ["Square", 19.5, 37], ["Lake", 47.5, 40], ["Barn", 46, 50], ["Market", 19.5, 57], ["Chapel", 19.5, 73]]
     .map(([text, tx, ty]) => ({ text, x: tx / W, y: ty / H })),
 };

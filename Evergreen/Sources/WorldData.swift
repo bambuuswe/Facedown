@@ -79,6 +79,14 @@ struct WorldLabel: Codable {
     let y: CGFloat
 }
 
+struct WorldStall: Codable {
+    let kind: String
+    let x: CGFloat
+    let y: CGFloat
+
+    var cg: CGPoint { CGPoint(x: x, y: y) }
+}
+
 struct WorldData: Codable {
     let width: CGFloat
     let height: CGFloat
@@ -87,6 +95,7 @@ struct WorldData: Codable {
     let rows: Int
     let solid: String
     let snow: String
+    let ice: String
     let stroll: String
     let props: [WorldProp]
     let houses: [WorldHouse]
@@ -104,6 +113,9 @@ struct WorldData: Codable {
     let deerZone: WorldZone
     let cat: WorldPoint
     let labels: [WorldLabel]
+    let workshop: WorldPoint
+    let chapelDoor: WorldPoint
+    let stalls: [WorldStall]
 
     static func load() -> WorldData {
         guard let url = Bundle.main.url(forResource: "world", withExtension: "json"),

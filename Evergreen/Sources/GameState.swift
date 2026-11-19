@@ -21,6 +21,15 @@ struct MapInfo {
     var dots: [MapDot] = []
 }
 
+struct ShopItem: Identifiable {
+    let id: String
+    let title: String
+    let detail: String
+    let price: Int
+    /// 0 for sale, 1 owned, 2 owned outfit you can wear, 3 the outfit you are wearing
+    let status: Int
+}
+
 struct Ending: Equatable {
     let tier: Int
     let lit: Int
@@ -52,6 +61,14 @@ final class GameState: ObservableObject {
     @Published var ending: Ending?
     @Published var curtain: String?
     @Published var mapOpen = false
+    @Published var shopOpen = false
+    @Published var shop: [ShopItem] = []
+    @Published var buff = ""
+    @Published var eventLabel = ""
+    @Published var gifts = 0
+    @Published var treats = 0
+    @Published var canGoHome = false
+    @Published var soundOn = true
     @Published var mapInfo = MapInfo()
     @Published var toast = ""
 

@@ -171,6 +171,8 @@ function makePerson(o, dir, frame) {
 const look = (o) => o;
 const CAST = {
   player: look({ hat: "bobble", hatColor: "#d8483e", band: "#f4f0e6", hairColor: "#7a4a2c", skin: "#f6cfa8", coat: "#3f8a5c", trim: "#f4f0e6", scarf: "#f5c93c", pants: "#3d4f80", belt: true }),
+  player_santa: look({ hat: "bobble", hatColor: "#c9342c", band: "#ffffff", hairColor: "#7a4a2c", skin: "#f6cfa8", coat: "#c9342c", trim: "#ffffff", scarf: "#ffffff", pants: "#c9342c", boots: "#2a2233", mitten: "#ffffff", belt: true }),
+  player_blue: look({ hat: "earflap", hatColor: "#3d6bb5", band: "#f4f0e6", hairColor: "#7a4a2c", skin: "#f6cfa8", coat: "#4a8fd0", trim: "#f4f0e6", scarf: "#f08a2c", pants: "#2a3a5e", mitten: "#f08a2c" }),
   villager_0: look({ hat: "beret", hatColor: "#4a78c8", hair: "long", hairColor: "#d9a441", skin: "#f6cfa8", coat: "#b8443b", trim: "#f4f0e6", scarf: "#f4f0e6", mitten: "#4a78c8", skirt: true, pants: "#5a4a6a" }),
   villager_1: look({ hat: "cap", hatColor: "#3f7f5c", band: "#2a5a42", hairColor: "#4a3229", skin: "#e9b98c", coat: "#8a5a3c", scarf: "#d8483e", beard: "#4a3229", pants: "#3d4f80" }),
   villager_2: look({ hat: "bobble", hatColor: "#8660bd", band: "#efc2ca", hair: "braids", hairColor: "#c96a3a", skin: "#f6cfa8", coat: "#e6c463", trim: "#f4f0e6", scarf: "#8660bd", skirt: true }),

@@ -72,6 +72,9 @@ struct HUD: View {
                 if state.mapOpen {
                     mapView
                 }
+                if state.shopOpen {
+                    shopView
+                }
             }
             if let curtain = state.curtain {
                 ZStack {
@@ -139,6 +142,27 @@ struct HUD: View {
                                 .foregroundStyle(gold)
                         }
                     }
+                    if !state.eventLabel.isEmpty || !state.buff.isEmpty || state.gifts > 0 || state.treats > 0 {
+                        HStack(spacing: 6) {
+                            if !state.eventLabel.isEmpty {
+                                Text(state.eventLabel)
+                                    .foregroundStyle(Color(red: 1, green: 0.62, blue: 0.55))
+                            }
+                            if !state.buff.isEmpty {
+                                PixelIcon(name: "icon_mug", width: 14, height: 12)
+                                Text(state.buff)
+                            }
+                            if state.gifts > 0 {
+                                PixelIcon(name: "icon_gift", width: 14, height: 12)
+                                Text("\(state.gifts)")
+                            }
+                            if state.treats > 0 {
+                                PixelIcon(name: "icon_treat", width: 14, height: 12)
+                                Text("\(state.treats)")
+                            }
+                        }
+                        .font(pixelFont(11))
+                    }
                 }
                 .foregroundStyle(snow)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -165,8 +189,21 @@ struct HUD: View {
                     .allowsHitTesting(false)
             }
             HStack {
+                if state.canGoHome && state.dialog == nil && state.ending == nil && !state.mapOpen && !state.shopOpen {
+                    Button {
+                        scene.headHome()
+                    } label: {
+                        Text("GO HOME\nTO BED")
+                            .font(pixelFont(11))
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(snow)
+                            .frame(width: 84, height: 44)
+                            .background(ink.opacity(0.93))
+                            .overlay(Rectangle().strokeBorder(snow, lineWidth: 2))
+                    }
+                }
                 Spacer()
-                if !state.actionTitle.isEmpty && state.dialog == nil && state.ending == nil && !state.mapOpen {
+                if !state.actionTitle.isEmpty && state.dialog == nil && state.ending == nil && !state.mapOpen && !state.shopOpen {
                     Button {
                         scene.performAction()
                     } label: {
@@ -257,6 +294,79 @@ struct HUD: View {
                 .foregroundStyle(snow)
             }
             .padding(24)
+        }
+    }
+
+    // MARK: - Workbench shop
+
+    private func shopLabel(_ item: ShopItem) -> String {
+        switch item.status {
+        case 1: return "OWNED"
+        case 2: return "WEAR"
+        case 3: return "WORN"
+        default: return item.price == 0 ? "FREE" : "\(item.price) COINS"
+        }
+    }
+
+    private func shopColor(_ item: ShopItem) -> Color {
+        switch item.status {
+        case 0: return state.coins >= item.price ? gold : Color.gray
+        case 2: return snow
+        default: return pine
+        }
+    }
+
+    private var shopView: some View {
+        ZStack {
+            Color.black.opacity(0.5).ignoresSafeArea()
+            Panel {
+                VStack(spacing: 8) {
+                    HStack(spacing: 6) {
+                        Text("WORKBENCH")
+                            .font(pixelFont(18))
+                            .foregroundStyle(gold)
+                        Spacer()
+                        PixelIcon(name: "icon_coin", width: 16, height: 16)
+                        Text("\(state.coins)")
+                            .font(pixelFont(15))
+                            .foregroundStyle(snow)
+                    }
+                    ScrollView {
+                        VStack(spacing: 6) {
+                            ForEach(state.shop) { item in
+                                HStack(spacing: 8) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.title.uppercased())
+                                            .font(pixelFont(13))
+                                            .foregroundStyle(snow)
+                                        Text(item.detail)
+                                            .font(pixelFont(10))
+                                            .foregroundStyle(snow.opacity(0.75))
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer(minLength: 4)
+                                    Button {
+                                        scene.buyItem(item.id)
+                                    } label: {
+                                        Text(shopLabel(item))
+                                            .font(pixelFont(11))
+                                            .foregroundStyle(ink)
+                                            .frame(width: 78, height: 34)
+                                            .background(shopColor(item))
+                                    }
+                                }
+                                .padding(8)
+                                .background(snow.opacity(0.08))
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 430)
+                    PixelButton(title: "CLOSE") {
+                        scene.closeShop()
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
         }
     }
 
@@ -375,6 +485,16 @@ struct HUD: View {
                         .font(pixelFont(11))
                         .foregroundStyle(snow.opacity(0.8))
                         .multilineTextAlignment(.center)
+                    Button {
+                        scene.toggleSound()
+                    } label: {
+                        Text(state.soundOn ? "SOUND: ON" : "SOUND: OFF")
+                            .font(pixelFont(12))
+                            .foregroundStyle(snow)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .overlay(Rectangle().strokeBorder(snow.opacity(0.7), lineWidth: 2))
+                    }
                 }
                 .padding(.horizontal, 36)
                 .padding(.bottom, 40)

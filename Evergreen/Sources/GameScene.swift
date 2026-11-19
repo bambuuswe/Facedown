@@ -27,6 +27,21 @@ final class GameScene: SKScene {
     var strollable: [Bool] = []
     var strollTiles: [Int] = []
     var tintColour = SKColor.white
+    var marketTiles: [Int] = []
+    var catNode: SKSpriteNode?
+    var catFollow: TimeInterval = 0
+    var catClock: TimeInterval = 0
+    var fireworkClock: TimeInterval = 0
+    var statusClock: TimeInterval = 0
+
+    // Moving about
+    var iceTiles: [Bool] = []
+    var slide = CGVector.zero
+    var boostLeft: TimeInterval = 0
+    var rushLeft: TimeInterval = 0
+    var bellCooldown: TimeInterval = 0
+    private var trackDistance: CGFloat = 0
+    private var soundDistance: CGFloat = 0
 
     // Things rebuilt from the save
     var lotNodes: [SKSpriteNode] = []
@@ -46,6 +61,8 @@ final class GameScene: SKScene {
     var chopClock: TimeInterval = 0
     let chopBar = SKNode()
     let chopMarker = SKSpriteNode(color: .white, size: CGSize(width: 2, height: 7))
+    let chopZoneNode = SKSpriteNode(color: SKColor(red: 0.3, green: 0.72, blue: 0.4, alpha: 1), size: CGSize(width: 9, height: 5))
+    var chopZone: CGFloat = 0.5
 
     // Flow
     var currentAction: Action?
@@ -97,13 +114,20 @@ final class GameScene: SKScene {
         snowy = Array(world.snow.utf8).map { $0 == 49 }
         strollable = Array(world.stroll.utf8).map { $0 == 49 }
         strollTiles = strollable.indices.filter { strollable[$0] }
+        iceTiles = Array(world.ice.utf8).map { $0 == 49 }
+        if let stall = world.stalls.first {
+            let row = Int((stall.y / world.tile).rounded(.down))
+            marketTiles = strollTiles.filter { $0 / world.cols == row || $0 / world.cols == row - 1 }
+        }
+        Sound.shared.start()
+        state.soundOn = Sound.shared.enabled
 
         addChild(worldNode)
         addChild(cam)
         camera = cam
         buildStatic()
 
-        player.texture = texture("player_down_0")
+        player.texture = texture("\(playerBase)_down_0")
         player.size = CGSize(width: 20, height: 30)
         player.anchorPoint = CGPoint(x: 0.5, y: 0.04)
         player.colorBlendFactor = 1
@@ -123,7 +147,7 @@ final class GameScene: SKScene {
         chopBar.isHidden = true
         let back = SKSpriteNode(color: SKColor(red: 0.17, green: 0.2, blue: 0.33, alpha: 1), size: CGSize(width: 34, height: 7))
         let track = SKSpriteNode(color: SKColor(red: 0.93, green: 0.95, blue: 1, alpha: 1), size: CGSize(width: 32, height: 5))
-        let zone = SKSpriteNode(color: SKColor(red: 0.3, green: 0.72, blue: 0.4, alpha: 1), size: CGSize(width: 9, height: 5))
+        let zone = chopZoneNode
         chopMarker.color = SKColor(red: 0.85, green: 0.28, blue: 0.24, alpha: 1)
         back.zPosition = 0
         track.zPosition = 1
@@ -271,6 +295,9 @@ final class GameScene: SKScene {
         chopSloppy = []
         currentAction = nil
         appliedNight = -1
+        catNode = nil
+        catFollow = 0
+        slide = .zero
 
         if let cabin = world.props.first(where: { $0.sprite == "cabin" }) {
             addEmissive("cabin_lit", x: cabin.x, y: cabin.y, dusk: true)
@@ -280,12 +307,13 @@ final class GameScene: SKScene {
         }
         buildFromSave()
         buildLife()
+        applyWeather()
 
         player.position = CGPoint(x: world.cabinDoor.x, y: world.cabinDoor.y - 6)
         player.zPosition = depth(player.position.y)
         facing = "down"
         player.xScale = 1
-        player.texture = texture("player_down_0")
+        player.texture = texture("\(playerBase)_down_0")
         applyNight(force: true)
     }
 
@@ -299,33 +327,74 @@ final class GameScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         let dt = lastTime == 0 ? 0 : min(currentTime - lastTime, 0.05)
         lastTime = currentTime
-        let active = state.screen == .playing && state.dialog == nil && state.ending == nil && state.curtain == nil && !state.mapOpen && !busy
+        let active = state.screen == .playing && state.dialog == nil && state.ending == nil && state.curtain == nil && !state.mapOpen && !state.shopOpen && !busy
 
         if active {
             movePlayer(dt)
             updateInteraction()
         } else {
             if stickTouch != nil { resetStick() }
-            player.texture = texture("player_\(facing)_0")
+            slide = .zero
+            player.texture = texture("\(playerBase)_\(facing)_0")
             clearAction()
         }
+        if active {
+            boostLeft = max(0, boostLeft - dt)
+            rushLeft = max(0, rushLeft - dt)
+        }
+        bellCooldown = max(0, bellCooldown - dt)
         updateSled()
         updateLife(dt)
+        updateFireworks(dt)
+        tickStatus(dt)
         updateChopBar(dt)
         updateNight(dt)
         updateCamera()
         updateArrow(active)
     }
 
+    /// Which set of player sprites to draw, depending on the outfit worn.
+    var playerBase: String {
+        ["player", "player_santa", "player_blue"][min(2, max(0, save.outfit))]
+    }
+
+    var isStormDay: Bool {
+        state.screen == .playing && SaveData.event(for: save.day) == .storm && save.phase != .epilogue
+    }
+
+    private var walkSpeed: CGFloat {
+        var speed: CGFloat = save.phase == .hauling ? (save.sledWax ? 82 : 66) : 82
+        if save.boots { speed *= 1.15 }
+        if boostLeft > 0 { speed *= 1.35 }
+        return speed
+    }
+
     private func movePlayer(_ dt: TimeInterval) {
-        let speed: CGFloat = save.phase == .hauling ? 58 : 66
-        let dx = stickVector.dx * speed * CGFloat(dt)
-        let dy = stickVector.dy * speed * CGFloat(dt)
-        if dx != 0 || dy != 0 {
+        let step = CGFloat(dt)
+        let speed = walkSpeed
+        var onIce = false
+        if let index = tileIndex(player.position), index < iceTiles.count {
+            onIce = iceTiles[index]
+        }
+        // On ice you glide: the stick only nudges your speed, so you carry momentum.
+        if onIce {
+            let grip = min(1, step * 1.7)
+            slide.dx += (stickVector.dx * speed * 1.3 - slide.dx) * grip
+            slide.dy += (stickVector.dy * speed * 1.3 - slide.dy) * grip
+        } else {
+            slide = CGVector(dx: stickVector.dx * speed, dy: stickVector.dy * speed)
+        }
+        let dx = slide.dx * step
+        let dy = slide.dy * step
+        if abs(slide.dx) + abs(slide.dy) > 3 {
             let before = player.position
             var position = before
-            if dx != 0 && !blocked(CGPoint(x: position.x + dx, y: position.y)) { position.x += dx }
-            if dy != 0 && !blocked(CGPoint(x: position.x, y: position.y + dy)) { position.y += dy }
+            if dx != 0 {
+                if blocked(CGPoint(x: position.x + dx, y: position.y)) { slide.dx = 0 } else { position.x += dx }
+            }
+            if dy != 0 {
+                if blocked(CGPoint(x: position.x, y: position.y + dy)) { slide.dy = 0 } else { position.y += dy }
+            }
             player.position = position
             if abs(dx) > abs(dy) {
                 facing = "side"
@@ -335,11 +404,12 @@ final class GameScene: SKScene {
                 player.xScale = 1
             }
             walkClock += dt
-            player.texture = texture("player_\(facing)_\(walkFrames[Int(walkClock / 0.13) % walkFrames.count])")
-            leaveFootprints(from: before, to: position)
+            let pace: TimeInterval = onIce ? 0.34 : 0.12
+            player.texture = texture("\(playerBase)_\(facing)_\(walkFrames[Int(walkClock / pace) % walkFrames.count])")
+            leaveTracks(from: before, to: position, onIce: onIce)
         } else {
             walkClock = 0
-            player.texture = texture("player_\(facing)_0")
+            player.texture = texture("\(playerBase)_\(facing)_0")
         }
         player.zPosition = depth(player.position.y)
         playerGlow.position = CGPoint(x: player.position.x, y: player.position.y + 10)
@@ -364,23 +434,44 @@ final class GameScene: SKScene {
         return false
     }
 
-    private func leaveFootprints(from before: CGPoint, to after: CGPoint) {
+    /// Footprints in snow, skate lines on ice, and the sound of each.
+    private func leaveTracks(from before: CGPoint, to after: CGPoint, onIce: Bool) {
         let dx = after.x - before.x
         let dy = after.y - before.y
         let moved = sqrt(dx * dx + dy * dy)
         guard moved > 0 else { return }
-        stepDistance += moved
-        guard stepDistance >= 8 else { return }
-        stepDistance = 0
-        stepSide = -stepSide
-        guard let index = tileIndex(after), index < snowy.count, snowy[index] else { return }
+        trackDistance += moved
+        soundDistance += moved
+        if soundDistance >= (onIce ? 30 : 17) {
+            soundDistance = 0
+            if onIce {
+                Sound.shared.play("skate", volume: 0.35)
+            } else {
+                stepSide = -stepSide
+                Sound.shared.play(stepSide > 0 ? "step_0" : "step_1", volume: 0.3)
+            }
+        }
+        guard trackDistance >= (onIce ? 4 : 8) else { return }
+        trackDistance = 0
+        guard let index = tileIndex(after) else { return }
         let shade = 0.55 + 0.25 * (1 - night)
-        let mark = SKSpriteNode(color: SKColor(red: shade * 0.92, green: shade * 0.98, blue: shade * 1.15, alpha: 1), size: CGSize(width: 2, height: 2))
-        mark.position = CGPoint(x: after.x - dy / moved * 2.5 * stepSide, y: after.y + dx / moved * 2.5 * stepSide)
+        let mark: SKSpriteNode
+        if onIce {
+            mark = SKSpriteNode(color: SKColor(red: shade * 1.25, green: shade * 1.3, blue: shade * 1.35, alpha: 1), size: CGSize(width: abs(dx) > abs(dy) ? 4 : 1, height: abs(dx) > abs(dy) ? 1 : 4))
+            mark.position = CGPoint(x: after.x, y: after.y + 1)
+        } else if index < snowy.count, snowy[index] {
+            stepDistance = -stepDistance == 0 ? 1 : -stepDistance
+            let side: CGFloat = stepDistance > 0 ? 1 : -1
+            mark = SKSpriteNode(color: SKColor(red: shade * 0.92, green: shade * 0.98, blue: shade * 1.15, alpha: 1), size: CGSize(width: 2, height: 2))
+            mark.position = CGPoint(x: after.x - dy / moved * 2.5 * side, y: after.y + dx / moved * 2.5 * side)
+        } else {
+            return
+        }
         mark.zPosition = 1
         mark.alpha = 0.85
         worldNode.addChild(mark)
-        mark.run(SKAction.sequence([SKAction.wait(forDuration: 5), SKAction.fadeOut(withDuration: 3), SKAction.removeFromParent()]))
+        let stay: TimeInterval = isStormDay ? 1.5 : 5
+        mark.run(SKAction.sequence([SKAction.wait(forDuration: stay), SKAction.fadeOut(withDuration: 3), SKAction.removeFromParent()]))
     }
 
     private func updateSled() {
@@ -426,6 +517,7 @@ final class GameScene: SKScene {
         chopBar.isHidden = false
         chopBar.position = CGPoint(x: tree.position.x, y: tree.position.y + tree.size.height + 6)
         chopMarker.position = CGPoint(x: -15 + 30 * chopSwing, y: 0)
+        chopZoneNode.position = CGPoint(x: -15 + 30 * chopZone, y: 0)
     }
 
     // MARK: - Night and light
@@ -433,8 +525,8 @@ final class GameScene: SKScene {
     private var nightTarget: CGFloat {
         if state.screen == .title { return 1 }
         switch save.phase {
-        case .morning: return 0
-        case .seeking: return 0.12
+        case .morning: return isStormDay ? 0.3 : 0
+        case .seeking: return isStormDay ? 0.34 : 0.12
         case .hauling: return 0.5
         case .evening, .epilogue: return 1
         }
@@ -537,7 +629,7 @@ final class GameScene: SKScene {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard state.screen == .playing, state.dialog == nil, state.ending == nil, state.curtain == nil, !state.mapOpen, !busy else { return }
+        guard state.screen == .playing, state.dialog == nil, state.ending == nil, state.curtain == nil, !state.mapOpen, !state.shopOpen, !busy else { return }
         guard stickTouch == nil, let touch = touches.first else { return }
         stickTouch = touch
         stickOrigin = touch.location(in: cam)

@@ -87,7 +87,9 @@ extension GameScene {
         }
 
         // By day the neighbours are out and about; today's customer is busy with you.
-        if save.phase == .morning || save.phase == .seeking || save.phase == .hauling {
+        // In a snowstorm everyone stays indoors, birds included.
+        let storm = SaveData.event(for: save.day) == .storm && save.phase != .epilogue
+        if !storm && (save.phase == .morning || save.phase == .seeking || save.phase == .hauling) {
             var away = -1
             if save.day < SaveData.lastDay && save.day >= 1 && save.day <= save.houseOrder.count {
                 away = save.houseOrder[save.day - 1]
@@ -107,10 +109,9 @@ extension GameScene {
             spawnCritter(kind: "deer", zone: woods, flees: true)
         }
 
-        let cat = addStanding("cat_0", x: world.cat.x, y: world.cat.y, to: dynamicNode)
-        cat.run(SKAction.repeatForever(SKAction.animate(with: [texture("cat_0"), texture("cat_1")], timePerFrame: 0.9)))
+        catNode = addStanding("cat_0", x: world.cat.x, y: world.cat.y, to: dynamicNode)
 
-        for _ in 0..<6 {
+        for _ in 0..<(storm ? 0 : 6) {
             let home = randomOpenPoint()
             for _ in 0..<3 {
                 let node = addStanding("bird_0", x: home.x + CGFloat.random(in: -12...12), y: home.y + CGFloat.random(in: -8...8), to: dynamicNode)
@@ -166,6 +167,20 @@ extension GameScene {
             walker.node.run(SKAction.sequence([SKAction.fadeOut(withDuration: 1.5), SKAction.removeFromParent()]))
         }
         walkers = []
+    }
+
+    /// Sends every bird into the air at once (the chapel bell does this).
+    func scatterBirds() {
+        for bird in birds where !bird.flying {
+            let side: CGFloat = Bool.random() ? 1 : -1
+            bird.flying = true
+            bird.timer = TimeInterval.random(in: 2.0...2.8)
+            bird.velocity = CGVector(dx: side * CGFloat.random(in: 40...64), dy: CGFloat.random(in: 36...56))
+            bird.node.xScale = side
+            bird.node.zPosition = 3250
+            bird.node.removeAllActions()
+        }
+        if !birds.isEmpty { Sound.shared.play("flutter", volume: 0.6) }
     }
 
     func addSmoke(_ point: CGPoint) {
@@ -239,7 +254,10 @@ extension GameScene {
                 walker.node.texture = texture("\(walker.base)_\(walker.facing)_0")
                 if walker.pause <= 0 && walker.route.isEmpty {
                     let from = tileIndex(walker.node.position) ?? -1
-                    walker.route = strollRoute(from: from, to: strollTiles.randomElement() ?? -1)
+                    // On market day half of all errands lead to the stalls.
+                    let toMarket = SaveData.event(for: save.day) == .market && Bool.random()
+                    let goal = (toMarket ? marketTiles.randomElement() : strollTiles.randomElement()) ?? -1
+                    walker.route = strollRoute(from: from, to: goal)
                     if walker.route.isEmpty { walker.pause = 1.5 }
                 }
                 continue
@@ -289,7 +307,7 @@ extension GameScene {
             let awayY = critter.node.position.y - player.position.y
             let gap = max(0.001, sqrt(awayX * awayX + awayY * awayY))
             var speed: CGFloat = critter.kind == "deer" ? 12 : 8
-            if critter.flees && playing && gap < 50 {
+            if critter.flees && playing && gap < 50 && save.treats == 0 {
                 critter.direction = CGVector(dx: awayX / gap, dy: awayY / gap)
                 critter.think = 0.6
                 speed = 54
@@ -330,6 +348,29 @@ extension GameScene {
             critter.node.zPosition = depth(critter.node.position.y)
         }
 
+        // The cat sits and flicks its tail, or trots after you for a while once petted.
+        if let cat = catNode {
+            catClock += dt
+            if catFollow > 0 { catFollow -= dt }
+            let gap = distance(cat.position, player.position)
+            let name: String
+            if catFollow > 0 && playing && gap > 24 {
+                let pace = min(92, 40 + gap) * step
+                let dx = player.position.x - cat.position.x
+                let dy = player.position.y - cat.position.y
+                cat.position = CGPoint(x: cat.position.x + dx / gap * pace, y: cat.position.y + dy / gap * pace)
+                cat.xScale = dx < 0 ? -1 : 1
+                name = "cat_walk_\(Int(catClock / 0.15) % 2)"
+            } else {
+                name = "cat_\(Int(catClock / 0.9) % 2)"
+            }
+            let tex = texture(name)
+            cat.texture = tex
+            cat.size = tex.size()
+            cat.zPosition = depth(cat.position.y)
+        }
+
+        var fluttered = false
         for bird in birds {
             bird.timer -= dt
             if bird.flying {
@@ -353,6 +394,10 @@ extension GameScene {
                 bird.node.xScale = side
                 bird.node.zPosition = 3250
                 bird.node.removeAllActions()
+                if !fluttered {
+                    fluttered = true
+                    Sound.shared.play("flutter", volume: 0.4)
+                }
             } else if bird.timer <= 0 {
                 bird.timer = TimeInterval.random(in: 0.3...1.7)
                 let roll = Int.random(in: 0..<4)

@@ -26,6 +26,7 @@ final class GameHolder: ObservableObject {
 
 struct ContentView: View {
     @StateObject private var holder = GameHolder()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -35,5 +36,10 @@ struct ContentView: View {
         }
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Sound.shared.resume()
+            }
+        }
     }
 }

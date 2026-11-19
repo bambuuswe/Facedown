@@ -262,6 +262,27 @@ const catTop = [".O..O.......", "OGOOGO......", "OGGGGO......", "OEGGEO......", 
 sprites.cat_0 = ascii([...catTop, ".OWWGOOO.OGO", ".OGgGGGGOOGO", ".OGGgGGGGGO.", ".OWGGWGGGO..", ".OOOOOOOO..."], CAT);
 sprites.cat_1 = ascii([...catTop.slice(0, 4), "OGGPGO.....O", ".OWWGOOO..OG", ".OGgGGGGOOGO", ".OGGgGGGGGO.", ".OWGGWGGGO..", ".OOOOOOOO..."], CAT);
 
+// ---------------------------------------------------------------- workbench and icons
+(() => {
+  const cv = new Canvas(26, 22);
+  cv.ellipse(12.5, 19, 12, 2.4, C.shadow);
+  cv.rect(2, 9, 22, 3, C.woodPale); cv.rect(2, 11, 22, 1, C.woodLight);
+  cv.rect(3, 12, 2, 8, C.woodDark); cv.rect(21, 12, 2, 8, C.woodDark); cv.rect(5, 15, 16, 1, C.wood);
+  cv.rect(17, 5, 5, 4, C.iron); cv.rect(18, 4, 3, 1, C.ironLight); cv.rect(15, 6, 2, 1, C.ironLight); // vice
+  cv.line(5, 8, 12, 3, C.wood); cv.rect(11, 1, 4, 4, C.stone); cv.rect(11, 1, 1, 4, C.stoneLight); // axe
+  cv.rect(7, 13, 6, 1, C.stoneLight); cv.rect(6, 14, 1, 1, C.wood); // saw hanging underneath
+  snowTop(cv, () => 1, (x, y) => y < 8 || y > 10 || x > 14);
+  cv.outline(C.outline);
+  sprites.workbench = cv;
+})();
+const CATW = { O: C.outline, G: hex("#e8a04a"), g: hex("#c97f30"), W: hex("#fdf0dc"), E: hex("#2a6b3a") };
+const catWalk = ["O..........O.O..", "OO........OGOGO.", ".OG.......OGGGO.", ".OGOOOOOOOOEGEO.", "..OGGgGGgGGGGWO.", "..OGGGGGGGGGGO..", "..OWGGGGGGGWO..."];
+sprites.cat_walk_0 = ascii([...catWalk, "..OGO.OGO.OGO...", "..OO..OO..OO...."], CATW);
+sprites.cat_walk_1 = ascii([...catWalk, "...OGOOGO..OGO..", "...OO.OO...OO..."], CATW);
+sprites.icon_mug = ascii([".........", ".OOOOOO..", ".OBBBBOOO", ".OWWWWO.O", ".OWWWWOOO", ".OWWWWO..", ".OOOOOO..", "........."], { O: C.outline, B: hex("#6a4a3c"), W: C.cream });
+sprites.icon_gift = ascii(["..RR.RR..", "...RRR...", ".OOOROOO.", ".OGGRGGO.", ".RRRRRRR.", ".OGGRGGO.", ".OGGRGGO.", ".OOOOOOO."], { O: C.outline, R: C.red, G: hex("#3f8f6e") });
+sprites.icon_treat = ascii(["..OOOOO..", ".OBBBBBO.", "OBBWBWBBO", "OBBBBBBBO", "OBWBBBWBO", ".OBWWWBO.", "..OOOOO..", "........."], { O: C.outline, B: hex("#b9773a"), W: C.snow });
+
 // ---------------------------------------------------------------- themed joystick
 (() => {
   const n = 46, cv = new Canvas(n, n), c = 22.5;
