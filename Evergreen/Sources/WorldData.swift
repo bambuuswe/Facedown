@@ -37,6 +37,7 @@ struct WorldHouse: Codable {
     let villager: String
     let hint: String
     let glows: [WorldGlow]
+    let smoke: WorldPoint
 
     var door: CGPoint { CGPoint(x: doorX, y: doorY) }
 }
@@ -58,6 +59,26 @@ struct WorldLight: Codable {
     let points: [WorldPoint]
 }
 
+struct WorldSkate: Codable {
+    let x: CGFloat
+    let y: CGFloat
+    let rx: CGFloat
+    let ry: CGFloat
+}
+
+struct WorldZone: Codable {
+    let x0: CGFloat
+    let y0: CGFloat
+    let x1: CGFloat
+    let y1: CGFloat
+}
+
+struct WorldLabel: Codable {
+    let text: String
+    let x: CGFloat
+    let y: CGFloat
+}
+
 struct WorldData: Codable {
     let width: CGFloat
     let height: CGFloat
@@ -66,6 +87,7 @@ struct WorldData: Codable {
     let rows: Int
     let solid: String
     let snow: String
+    let stroll: String
     let props: [WorldProp]
     let houses: [WorldHouse]
     let lights: [WorldLight]
@@ -75,6 +97,13 @@ struct WorldData: Codable {
     let cabinDoor: WorldPoint
     let customer: WorldPoint
     let gate: WorldPoint
+    let vendors: [WorldProp]
+    let cabinSmoke: WorldPoint
+    let skate: WorldSkate
+    let sheepZone: WorldZone
+    let deerZone: WorldZone
+    let cat: WorldPoint
+    let labels: [WorldLabel]
 
     static func load() -> WorldData {
         guard let url = Bundle.main.url(forResource: "world", withExtension: "json"),

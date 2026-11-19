@@ -451,60 +451,11 @@ sprites.span_lights = stringLights(176, 7, 2);
 })();
 
 // ---------------------------------------------------------------- people
-const PERSON = {
-  down: [
-    "......OPPO......", ".....OPPPPO.....", "....OOHHHHOO....", "...OHHHHHHHHO...", "...OHHHHHHHHO...", "..OhhhhhhhhhhO..",
-    "..OKSSSSSSSSKO..", "..OSSESSSSESSO..", "..OSSSSSSSSSSO..", "...OSsSSSSsSO...", "..ORRRRRRRRRRO..", ".OCORRRRRRRROCO.",
-    ".OCCCCCRRCCCCCO.", ".OCCCCCRRCCCCCO.", ".OMCCCCCCCCCCMO.", ".OMCCCCccCCCCMO.", "..OCCCCccCCCCO..", "..OWWWWWWWWWWO..",
-  ],
-  up: [
-    "......OPPO......", ".....OPPPPO.....", "....OOHHHHOO....", "...OHHHHHHHHO...", "...OHHHHHHHHO...", "..OhhhhhhhhhhO..",
-    "..OHHHHHHHHHHO..", "..OHHHHHHHHHHO..", "..OKKKKKKKKKKO..", "...OKKKKKKKKO...", "..ORRRRRRRRRRO..", ".OCORRRRRRRROCO.",
-    ".OCCCCRRCCCCCCO.", ".OCCCCRRCCCCCCO.", ".OMCCCCCCCCCCMO.", ".OMCCCCCCCCCCMO.", "..OCCCCCCCCCCO..", "..OWWWWWWWWWWO..",
-  ],
-  side: [
-    ".....OPPO.......", "....OPPPPO......", "....OOHHHHO.....", "...OHHHHHHHO....", "...OHHHHHHHHO...", "...OhhhhhhhhhO..",
-    "...OKKSSSSSSO...", "...OKSSSSESSO...", "...OKSSSSSSSSO..", "....OSSSSSSSO...", "...ORRRRRRRRO...", "..ORRCCCCCCCO...",
-    "..ORCCCCCCCCO...", "...OCCCCMMCCO...", "...OCCCCMMCCO...", "...OCCCCCCCCO...", "...OCCCCCCCCO...", "...OWWWWWWWWO...",
-  ],
-};
-const LEGS = {
-  front: [
-    ["...OLLLOOLLLO...", "...OLLO..OLLO...", "...OBBO..OBBO...", "...OOOO..OOOO..."],
-    ["...OLLLOOLLLO...", "...OBBO..OLLO...", "...OOOO..OBBO...", ".........OOOO..."],
-    ["...OLLLOOLLLO...", "...OLLO..OBBO...", "...OBBO..OOOO...", "...OOOO........."],
-  ],
-  side: [
-    ["....OLLLLLLO....", "....OLLOOLLO....", "....OBBOOBBBO...", "....OOOOOOOOO..."],
-    ["....OLLLLLLO....", "...OLLO..OLLO...", "..OBBO....OBBO..", "..OOOO....OOOO.."],
-    ["....OLLLLLLO....", ".....OLLLLO.....", ".....OBBBBO.....", ".....OOOOOO....."],
-  ],
-};
-const TOPHAT = ["................", "....OOOOOOOO....", "....OHHHHHHO....", "....OHHHHHHO....", "....OhhhhhhO....", "..OOHHHHHHHHOO.."];
-function outfit(hat, band, coat, scarf, hair, skin, pants, mitten) {
-  const c = hex(coat);
-  return { O: C.outline, P: C.snow, H: hex(hat), h: hex(band), K: hex(hair), S: hex(skin), s: mix(hex(skin), hex("#e8756a"), 0.45), E: hex("#2a2233"),
-    R: hex(scarf), C: c, c: mix(c, C.outline, 0.3), M: hex(mitten || hat), W: hex("#f4f0e6"), L: hex(pants), B: hex("#5a3b2a") };
+const { makePerson, CAST, NAMES } = require("./characters");
+for (const [name, look] of Object.entries(CAST)) for (const dir of ["down", "up", "side"]) for (let f = 0; f < 3; f++) {
+  sprites[`${name}_${dir}_${f}`] = makePerson(look, dir, f);
 }
-const PLAYER = outfit("#d8483e", "#f4f0e6", "#3f8a5c", "#f5c93c", "#7a4a2c", "#f6cfa8", "#3d4f80");
-for (const dir of ["down", "up", "side"]) for (let f = 0; f < 3; f++) {
-  sprites[`player_${dir}_${f}`] = ascii([...PERSON[dir], ...(dir === "side" ? LEGS.side : LEGS.front)[f]], PLAYER);
-}
-const VILLAGERS = [
-  ["Marta", "#4a78c8", "#f4f0e6", "#b8443b", "#f4f0e6", "#d9a441", "#f6cfa8", "#5a4a6a"],
-  ["Olle", "#3f7f5c", "#f5c93c", "#8a5a3c", "#d8483e", "#4a3229", "#e9b98c", "#3d4f80"],
-  ["Ingrid", "#8660bd", "#efc2ca", "#e6c463", "#8660bd", "#c96a3a", "#f6cfa8", "#6a4a3c"],
-  ["Sven", "#5f6b85", "#c3cad6", "#3d517e", "#f5c93c", "#b9b9c2", "#f1c7a0", "#3a3a48"],
-  ["Astrid", "#d9709a", "#f4f0e6", "#f1e3c4", "#d9709a", "#2a2233", "#c98f66", "#5a4a6a"],
-  ["Nils", "#c9483a", "#3f7f5c", "#4f6f9e", "#f4f0e6", "#7a4a2c", "#f6cfa8", "#3a3a48"],
-  ["Greta", "#f5c93c", "#b8443b", "#3f8f6e", "#f5c93c", "#e8e2d2", "#f1c7a0", "#6a4a3c"],
-  ["Emil", "#3d517e", "#7aa3e6", "#96603d", "#3f7f5c", "#d9a441", "#e9b98c", "#3d4f80"],
-  ["Selma", "#3f8f6e", "#f4f0e6", "#c2584a", "#f4f0e6", "#4a3229", "#a8704c", "#5a4a6a"],
-  ["Anton", "#96603d", "#f1e3c4", "#5f6b85", "#c9483a", "#2a2233", "#f6cfa8", "#3a3a48"],
-  ["Freja", "#e37a63", "#f4f0e6", "#6f93c4", "#f5c93c", "#c96a3a", "#f6cfa8", "#6a4a3c"],
-];
-meta.villagers = VILLAGERS.map(([name, ...o], i) => { sprites[`villager_${i}`] = ascii([...PERSON.down, ...LEGS.front[0]], outfit(...o)); return name; });
-sprites.mayor = ascii([...TOPHAT, ...PERSON.down.slice(6), ...LEGS.front[0]], outfit("#2a2233", "#c9483a", "#3a3a48", "#f5c93c", "#b9b9c2", "#f1c7a0", "#2a2233", "#f4f0e6"));
+meta.villagers = NAMES;
 sprites.sled = ascii([
   "....................", "..OOOOOOOOOOOOOOO...", ".OWWWWWWWWWWWWWWWO..", ".OwwwwwwwwwwwwwwwO.R", "..OOOOOOOOOOOOOOO.R.", "...O.....O.....O.R..", ".RRRRRRRRRRRRRRRRR..",
 ], { O: C.outline, W: C.woodPale, w: C.wood, R: C.red });

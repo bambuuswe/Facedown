@@ -7,6 +7,20 @@ struct Dialog: Equatable {
     let button: String
 }
 
+struct MapDot: Identifiable {
+    let id: Int
+    let x: CGFloat
+    let y: CGFloat
+    let lit: Bool
+}
+
+/// Positions for the map screen, each from 0 to 1 across the map, y downward.
+struct MapInfo {
+    var player = CGPoint.zero
+    var target: CGPoint?
+    var dots: [MapDot] = []
+}
+
 struct Ending: Equatable {
     let tier: Int
     let lit: Int
@@ -37,6 +51,8 @@ final class GameState: ObservableObject {
     @Published var dialog: Dialog?
     @Published var ending: Ending?
     @Published var curtain: String?
+    @Published var mapOpen = false
+    @Published var mapInfo = MapInfo()
     @Published var toast = ""
 
     private var toastID = 0

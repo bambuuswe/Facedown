@@ -15,8 +15,18 @@ final class GameScene: SKScene {
     let player = SKSpriteNode()
     private let playerGlow = SKSpriteNode()
     private let arrow = SKSpriteNode()
-    private let stickBase = SKShapeNode(circleOfRadius: 18)
-    private let stickKnob = SKShapeNode(circleOfRadius: 8)
+    private let stickBase = SKSpriteNode()
+    private let stickKnob = SKSpriteNode()
+    let snowfall = SKEmitterNode()
+
+    // Village life (see GameScene+Life.swift)
+    var walkers: [Walker] = []
+    var critters: [Critter] = []
+    var birds: [Bird] = []
+    var skaters: [Skater] = []
+    var strollable: [Bool] = []
+    var strollTiles: [Int] = []
+    var tintColour = SKColor.white
 
     // Things rebuilt from the save
     var lotNodes: [SKSpriteNode] = []
@@ -45,8 +55,8 @@ final class GameScene: SKScene {
     var night: CGFloat = 1
     private var appliedNight: CGFloat = -1
 
-    private var solid: [Bool] = []
-    private var snowy: [Bool] = []
+    var solid: [Bool] = []
+    var snowy: [Bool] = []
     private var textures: [String: SKTexture] = [:]
     private var didSetUp = false
     private var lastTime: TimeInterval = 0
@@ -57,7 +67,7 @@ final class GameScene: SKScene {
     private var stickTouch: UITouch?
     private var stickOrigin = CGPoint.zero
     private var stickVector = CGVector.zero
-    private let walkFrames = [1, 0, 2, 0]
+    let walkFrames = [1, 0, 2, 0]
 
     init(size: CGSize, state: GameState) {
         self.state = state
@@ -85,6 +95,8 @@ final class GameScene: SKScene {
         backgroundColor = SKColor(red: 0.12, green: 0.16, blue: 0.3, alpha: 1)
         solid = Array(world.solid.utf8).map { $0 == 49 }
         snowy = Array(world.snow.utf8).map { $0 == 49 }
+        strollable = Array(world.stroll.utf8).map { $0 == 49 }
+        strollTiles = strollable.indices.filter { strollable[$0] }
 
         addChild(worldNode)
         addChild(cam)
@@ -92,8 +104,8 @@ final class GameScene: SKScene {
         buildStatic()
 
         player.texture = texture("player_down_0")
-        player.size = CGSize(width: 16, height: 22)
-        player.anchorPoint = CGPoint(x: 0.5, y: 0.05)
+        player.size = CGSize(width: 20, height: 30)
+        player.anchorPoint = CGPoint(x: 0.5, y: 0.04)
         player.colorBlendFactor = 1
         worldNode.addChild(player)
         staticTint.append(player)
@@ -129,32 +141,35 @@ final class GameScene: SKScene {
         arrow.isHidden = true
         cam.addChild(arrow)
 
-        stickBase.fillColor = SKColor(white: 1, alpha: 0.15)
-        stickBase.strokeColor = SKColor(white: 1, alpha: 0.45)
-        stickBase.lineWidth = 1
+        stickBase.texture = texture("stick_base")
+        stickBase.size = CGSize(width: 46, height: 46)
+        stickBase.alpha = 0.92
         stickBase.zPosition = 3600
         stickBase.isHidden = true
         cam.addChild(stickBase)
-        stickKnob.fillColor = SKColor(white: 1, alpha: 0.6)
-        stickKnob.strokeColor = .clear
+        stickKnob.texture = texture("stick_knob")
+        stickKnob.size = CGSize(width: 20, height: 23)
         stickKnob.zPosition = 3601
         stickKnob.isHidden = true
         cam.addChild(stickKnob)
 
-        let snowfall = SKEmitterNode()
+        // Snow falls in the world, not on the glass: flakes stay put as the camera moves.
         snowfall.particleTexture = texture("flake")
-        snowfall.particleBirthRate = 16
-        snowfall.particleLifetime = 10
-        snowfall.particleSpeed = 24
-        snowfall.particleSpeedRange = 10
-        snowfall.emissionAngle = -CGFloat.pi / 2 - 0.25
+        snowfall.particleBirthRate = 46
+        snowfall.particleLifetime = 7
+        snowfall.particleLifetimeRange = 2
+        snowfall.particleSpeed = 20
+        snowfall.particleSpeedRange = 8
+        snowfall.emissionAngle = -CGFloat.pi / 2 - 0.3
         snowfall.emissionAngleRange = 0.5
-        snowfall.particlePositionRange = CGVector(dx: size.width * 1.6, dy: 0)
-        snowfall.particleAlpha = 0.9
-        snowfall.particleAlphaRange = 0.2
-        snowfall.position = CGPoint(x: 20, y: size.height / 2 + 6)
+        snowfall.particlePositionRange = CGVector(dx: size.width * 1.7, dy: size.height * 1.5)
+        snowfall.particleAlphaSequence = SKKeyframeSequence(keyframeValues: [0, 0.95, 0.95, 0], times: [0, 0.12, 0.8, 1])
+        snowfall.particleScale = 0.85
+        snowfall.particleScaleRange = 0.5
+        snowfall.position = CGPoint(x: 0, y: 40)
         snowfall.zPosition = 3300
-        snowfall.advanceSimulationTime(10)
+        snowfall.particleZPosition = 3300
+        snowfall.targetNode = worldNode
         cam.addChild(snowfall)
 
         rebuildDynamic()
@@ -215,6 +230,9 @@ final class GameScene: SKScene {
         node.zPosition = 3200
         dynamicNode.addChild(node)
         duskNodes.append((node, strength))
+        // a slow, uneven breathing so lamps and fires feel alive
+        let slow = TimeInterval.random(in: 0.7...1.3)
+        node.run(SKAction.repeatForever(SKAction.sequence([SKAction.scale(to: 1.06, duration: slow), SKAction.scale(to: 0.96, duration: slow * 0.8)])))
         return node
     }
 
@@ -261,6 +279,7 @@ final class GameScene: SKScene {
             }
         }
         buildFromSave()
+        buildLife()
 
         player.position = CGPoint(x: world.cabinDoor.x, y: world.cabinDoor.y - 6)
         player.zPosition = depth(player.position.y)
@@ -280,7 +299,7 @@ final class GameScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         let dt = lastTime == 0 ? 0 : min(currentTime - lastTime, 0.05)
         lastTime = currentTime
-        let active = state.screen == .playing && state.dialog == nil && state.ending == nil && state.curtain == nil && !busy
+        let active = state.screen == .playing && state.dialog == nil && state.ending == nil && state.curtain == nil && !state.mapOpen && !busy
 
         if active {
             movePlayer(dt)
@@ -291,6 +310,7 @@ final class GameScene: SKScene {
             clearAction()
         }
         updateSled()
+        updateLife(dt)
         updateChopBar(dt)
         updateNight(dt)
         updateCamera()
@@ -325,14 +345,14 @@ final class GameScene: SKScene {
         playerGlow.position = CGPoint(x: player.position.x, y: player.position.y + 10)
     }
 
-    private func tileIndex(_ point: CGPoint) -> Int? {
+    func tileIndex(_ point: CGPoint) -> Int? {
         let tx = Int((point.x / world.tile).rounded(.down))
         let ty = Int((point.y / world.tile).rounded(.down))
         guard tx >= 0, ty >= 0, tx < world.cols, ty < world.rows else { return nil }
         return ty * world.cols + tx
     }
 
-    private func blocked(_ feet: CGPoint) -> Bool {
+    func blocked(_ feet: CGPoint) -> Bool {
         let xs: [CGFloat] = [-4, 4]
         let ys: [CGFloat] = [0, 4]
         for ox in xs {
@@ -413,16 +433,24 @@ final class GameScene: SKScene {
     private var nightTarget: CGFloat {
         if state.screen == .title { return 1 }
         switch save.phase {
-        case .morning, .seeking: return 0
+        case .morning: return 0
+        case .seeking: return 0.12
         case .hauling: return 0.5
         case .evening, .epilogue: return 1
         }
     }
 
+    /// Jumps straight to the right light for this moment (used when a game is opened).
+    func snapNight() {
+        night = nightTarget
+        applyNight(force: true)
+    }
+
     private func updateNight(_ dt: TimeInterval) {
         let target = nightTarget
         if night != target {
-            let step = CGFloat(dt) * 0.2
+            // Slow on purpose: dusk takes most of the walk down to the village.
+            let step = CGFloat(dt) * 0.014
             night = night < target ? min(target, night + step) : max(target, night - step)
         }
         applyNight(force: false)
@@ -443,6 +471,7 @@ final class GameScene: SKScene {
             }
         }
         let colour = SKColor(red: rgb[0], green: rgb[1], blue: rgb[2], alpha: 1)
+        tintColour = colour
         for node in staticTint { node.color = colour }
         for node in dynamicTint { node.color = colour }
 
@@ -508,7 +537,7 @@ final class GameScene: SKScene {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard state.screen == .playing, state.dialog == nil, state.ending == nil, state.curtain == nil, !busy else { return }
+        guard state.screen == .playing, state.dialog == nil, state.ending == nil, state.curtain == nil, !state.mapOpen, !busy else { return }
         guard stickTouch == nil, let touch = touches.first else { return }
         stickTouch = touch
         stickOrigin = touch.location(in: cam)
@@ -531,7 +560,7 @@ final class GameScene: SKScene {
         }
         let strength = min(1, length / 9)
         stickVector = CGVector(dx: dx / length * strength, dy: dy / length * strength)
-        let reach = min(length, 16)
+        let reach = min(length, 13)
         stickKnob.position = CGPoint(x: stickOrigin.x + dx / length * reach, y: stickOrigin.y + dy / length * reach)
     }
 

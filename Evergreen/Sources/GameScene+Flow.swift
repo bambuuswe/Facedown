@@ -32,7 +32,9 @@ extension GameScene {
         state.hasSave = true
         state.ending = nil
         rebuildDynamic()
+        state.mapOpen = false
         state.screen = .playing
+        snapNight()
         refreshHUD()
         showDialog(Dialog(
             speaker: "Evergreen Farm",
@@ -43,12 +45,50 @@ extension GameScene {
 
     func continueGame() {
         state.screen = .playing
+        snapNight()
         refreshHUD()
     }
 
     func showTitle() {
         resetStick()
+        state.mapOpen = false
         state.screen = .title
+        snapNight()
+    }
+
+    // MARK: - Map screen
+
+    func openMap() {
+        guard state.screen == .playing, state.dialog == nil, !busy else { return }
+        resetStick()
+        func spot(_ point: CGPoint) -> CGPoint {
+            CGPoint(x: point.x / world.width, y: 1 - point.y / world.height)
+        }
+        var info = MapInfo()
+        info.player = spot(player.position)
+        switch save.phase {
+        case .morning:
+            info.target = spot(world.customer.cg)
+        case .seeking:
+            info.target = spot(isLastDay ? world.giant.cg : world.gate.cg)
+        case .hauling:
+            info.target = spot(isLastDay ? world.square.cg : world.houses[todayHouse].door)
+        case .evening:
+            info.target = spot(isLastDay && !save.squareLit ? world.square.cg : world.cabinDoor.cg)
+        case .epilogue:
+            info.target = nil
+        }
+        for (index, light) in world.lights.enumerated() {
+            guard let point = light.points.first else { continue }
+            let place = spot(point.cg)
+            info.dots.append(MapDot(id: index, x: place.x, y: place.y, lit: save.lit[index]))
+        }
+        state.mapInfo = info
+        state.mapOpen = true
+    }
+
+    func closeMap() {
+        state.mapOpen = false
     }
 
     // MARK: - Building from the save
@@ -106,7 +146,7 @@ extension GameScene {
 
         switch save.phase {
         case .morning:
-            let name = isLastDay ? "mayor" : world.houses[todayHouse].villager
+            let name = isLastDay ? "mayor_down_0" : world.houses[todayHouse].villager + "_down_0"
             customerNode = addStanding(name, x: world.customer.x, y: world.customer.y, to: dynamicNode)
             markerNode = addMarker("marker_tree", at: CGPoint(x: world.customer.x, y: world.customer.y + 32))
             arrowTarget = world.customer.cg
@@ -134,6 +174,9 @@ extension GameScene {
         for entry in villagerNodes {
             entry.node.isHidden = !outdoors
         }
+        if outdoors {
+            sendWalkersHome()
+        }
     }
 
     /// A delivered house: decorated tree in the yard, lit windows, and its owner outside.
@@ -147,7 +190,8 @@ extension GameScene {
         for glow in house.glows {
             addGlow(glow)
         }
-        let villager = addStanding(house.villager, x: house.doorX + 13, y: house.doorY + 1, to: dynamicNode)
+        let villager = addStanding(house.villager + "_down_0", x: house.doorX + 13, y: house.doorY + 1, to: dynamicNode)
+        addSmoke(house.smoke.cg)
         villager.isHidden = !(save.phase == .evening || save.phase == .epilogue)
         villagerNodes.append((index, villager))
 
@@ -165,7 +209,12 @@ extension GameScene {
         let light = world.lights[index]
         let lamp = light.kind == "lantern" || light.kind == "snowman" || light.kind == "pond"
         for part in light.parts where !part.lit.isEmpty {
-            addEmissive(part.lit, x: part.x, y: part.y, dusk: lamp)
+            let node = addEmissive(part.lit, x: part.x, y: part.y, dusk: lamp)
+            if part.lit.hasSuffix("_lit_0") {
+                // fires flicker between two flame shapes
+                let other = String(part.lit.dropLast(1)) + "1"
+                node.run(SKAction.repeatForever(SKAction.animate(with: [texture(part.lit), texture(other)], timePerFrame: 0.17)))
+            }
         }
         for glow in light.glows {
             addGlow(glow)
@@ -333,6 +382,9 @@ extension GameScene {
                 offer(.chat(entry.house), entry.node.position, 15)
             }
         }
+        for walker in walkers where walker.house >= 0 {
+            offer(.chat(walker.house), walker.node.position, 17)
+        }
 
         if best != currentAction {
             currentAction = best
@@ -373,7 +425,7 @@ extension GameScene {
     // MARK: - Doing it
 
     func performAction() {
-        guard state.screen == .playing, state.dialog == nil, state.curtain == nil, !busy, let action = currentAction else { return }
+        guard state.screen == .playing, state.dialog == nil, state.curtain == nil, !state.mapOpen, !busy, let action = currentAction else { return }
         switch action {
         case .talk: talk()
         case .chop(let index): chop(index)
@@ -403,14 +455,14 @@ extension GameScene {
         if isLastDay {
             dialog = Dialog(
                 speaker: "Mayor Birgit",
-                portrait: "mayor",
+                portrait: "mayor_down_0",
                 text: "It's Christmas Eve! The village needs its great tree.\n\nBring the big fir from beside your lane down to the square, would you?",
                 button: "With pleasure")
         } else {
             let house = world.houses[todayHouse]
             dialog = Dialog(
                 speaker: house.name,
-                portrait: house.villager,
+                portrait: house.villager + "_down_0",
                 text: "Good morning! \(todayWish.sentence)\n\nI live in \(house.hint).",
                 button: "I'll find one")
         }
@@ -509,7 +561,7 @@ extension GameScene {
         let wish = todayWish
         let hits = wish.matches(tree)
         let perfect = hits == wish.count
-        let pay = 6 + 3 * hits + (perfect ? 4 : 0)
+        let pay = 8 + 5 * hits + (perfect ? 5 : 0)
 
         save.coins += pay
         if perfect { save.hearts += 1 }
@@ -534,7 +586,7 @@ extension GameScene {
             line = "Hm. Well, a tree is a tree. Thank you for bringing it."
         }
         let reward = perfect ? "+\(pay) coins  ·  +1 heart" : "+\(pay) coins"
-        showDialog(Dialog(speaker: house.name, portrait: house.villager, text: "\(line)\n\n\(reward)", button: "Merry Christmas"))
+        showDialog(Dialog(speaker: house.name, portrait: house.villager + "_down_0", text: "\(line)\n\n\(reward)", button: "Merry Christmas"))
     }
 
     private func plantGreatTree() {
@@ -551,7 +603,7 @@ extension GameScene {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         showDialog(Dialog(
             speaker: "Mayor Birgit",
-            portrait: "mayor",
+            portrait: "mayor_down_0",
             text: "Magnificent! Here, for your trouble: 20 coins.\n\nBuy any last lights you like, then do us the honour and light the tree.",
             button: "I will"))
     }
@@ -631,13 +683,31 @@ extension GameScene {
 
     private func chat(_ index: Int) {
         let house = world.houses[index]
-        let lines = [
-            "The tree looks wonderful. Thank you again!",
-            "Have you seen the lanterns? The village feels warmer already.",
-            "My little ones can't stop staring at the star on top.",
-            "It finally feels like Christmas around here.",
-            "Mind the ice by the pond. And merry Christmas!"
-        ]
-        showDialog(Dialog(speaker: house.name, portrait: house.villager, text: lines.randomElement() ?? "Merry Christmas!", button: "Merry Christmas"))
+        let lines: [String]
+        if save.phase == .evening || save.phase == .epilogue {
+            lines = [
+                "The tree looks wonderful. Thank you again!",
+                "Have you seen the lanterns? The village feels warmer already.",
+                "My little ones can't stop staring at the star on top.",
+                "It finally feels like Christmas around here.",
+                "Mind the ice by the pond. And merry Christmas!"
+            ]
+        } else if save.houseTrees[index] != nil {
+            lines = [
+                "Our tree is the talk of the street. Thank you!",
+                "The children are skating on the lake again. Have you been?",
+                "Try the cocoa at the market. It's worth the walk.",
+                "I saw deer up in the old forest this morning."
+            ]
+        } else {
+            lines = [
+                "Lovely morning for it. I'll be by for a tree one of these days.",
+                "The village is so dark this year. A few lanterns would do wonders.",
+                "Have you seen the sheep at the barn? Fat and woolly as ever.",
+                "They say there's a campfire spot up the forest trail.",
+                "Mind the geese. Oh wait, wrong village."
+            ]
+        }
+        showDialog(Dialog(speaker: house.name, portrait: house.villager + "_down_0", text: lines.randomElement() ?? "Merry Christmas!", button: "See you"))
     }
 }

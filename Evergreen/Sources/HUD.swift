@@ -69,6 +69,9 @@ struct HUD: View {
                 if let ending = state.ending {
                     endingView(ending)
                 }
+                if state.mapOpen {
+                    mapView
+                }
             }
             if let curtain = state.curtain {
                 ZStack {
@@ -104,6 +107,15 @@ struct HUD: View {
                         PixelIcon(name: "icon_bulb", width: 14, height: 18)
                         Text("\(state.litCount)/\(state.lightTotal)")
                         Spacer(minLength: 4)
+                        Button {
+                            scene.openMap()
+                        } label: {
+                            Text("MAP")
+                                .font(pixelFont(12))
+                                .foregroundStyle(ink)
+                                .frame(width: 40, height: 26)
+                                .background(gold)
+                        }
                         Button {
                             scene.showTitle()
                         } label: {
@@ -154,7 +166,7 @@ struct HUD: View {
             }
             HStack {
                 Spacer()
-                if !state.actionTitle.isEmpty && state.dialog == nil && state.ending == nil {
+                if !state.actionTitle.isEmpty && state.dialog == nil && state.ending == nil && !state.mapOpen {
                     Button {
                         scene.performAction()
                     } label: {
@@ -188,7 +200,7 @@ struct HUD: View {
             Panel {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .top, spacing: 12) {
-                        PixelIcon(name: dialog.portrait, width: 48, height: 66)
+                        PixelIcon(name: dialog.portrait, width: 60, height: 90)
                             .padding(6)
                             .background(snow.opacity(0.12))
                         VStack(alignment: .leading, spacing: 6) {
@@ -245,6 +257,83 @@ struct HUD: View {
                 .foregroundStyle(snow)
             }
             .padding(24)
+        }
+    }
+
+    // MARK: - Map
+
+    private var mapView: some View {
+        let info = state.mapInfo
+        let world = scene.world
+        let imageWidth = CGFloat(world.cols * 6 + 8)
+        let imageHeight = CGFloat(world.rows * 6 + 8)
+        return ZStack {
+            Color.black.opacity(0.5).ignoresSafeArea()
+            Panel {
+                VStack(spacing: 10) {
+                    Text("VILLAGE MAP")
+                        .font(pixelFont(18))
+                        .foregroundStyle(gold)
+                    Image(uiImage: UIImage(named: "minimap") ?? UIImage())
+                        .interpolation(.none)
+                        .resizable()
+                        .aspectRatio(imageWidth / imageHeight, contentMode: .fit)
+                        .overlay(
+                            GeometryReader { proxy in
+                                let insetX = proxy.size.width * 4 / imageWidth
+                                let insetY = proxy.size.height * 4 / imageHeight
+                                let spanX = proxy.size.width - insetX * 2
+                                let spanY = proxy.size.height - insetY * 2
+                                ZStack {
+                                    ForEach(world.labels.indices, id: \.self) { index in
+                                        Text(world.labels[index].text.uppercased())
+                                            .font(pixelFont(8))
+                                            .foregroundStyle(ink)
+                                            .padding(.horizontal, 2)
+                                            .background(snow.opacity(0.8))
+                                            .position(x: insetX + world.labels[index].x * spanX, y: insetY + world.labels[index].y * spanY)
+                                    }
+                                    ForEach(info.dots) { dot in
+                                        Rectangle()
+                                            .fill(dot.lit ? gold : ink.opacity(0.55))
+                                            .frame(width: 5, height: 5)
+                                            .overlay(Rectangle().strokeBorder(ink, lineWidth: 1))
+                                            .position(x: insetX + dot.x * spanX, y: insetY + dot.y * spanY)
+                                    }
+                                    if let target = info.target {
+                                        Rectangle()
+                                            .fill(gold)
+                                            .frame(width: 10, height: 10)
+                                            .overlay(Rectangle().strokeBorder(ink, lineWidth: 2))
+                                            .rotationEffect(.degrees(45))
+                                            .position(x: insetX + target.x * spanX, y: insetY + target.y * spanY)
+                                    }
+                                    Circle()
+                                        .fill(berry)
+                                        .frame(width: 11, height: 11)
+                                        .overlay(Circle().strokeBorder(snow, lineWidth: 2))
+                                        .position(x: insetX + info.player.x * spanX, y: insetY + info.player.y * spanY)
+                                }
+                            }
+                        )
+                    HStack(spacing: 10) {
+                        Circle().fill(berry).frame(width: 9, height: 9)
+                        Text("YOU")
+                        Rectangle().fill(gold).frame(width: 8, height: 8).rotationEffect(.degrees(45))
+                        Text("GO HERE")
+                        Rectangle().fill(gold).frame(width: 6, height: 6)
+                        Text("LIT")
+                        Rectangle().fill(ink.opacity(0.55)).frame(width: 6, height: 6).overlay(Rectangle().strokeBorder(snow, lineWidth: 1))
+                        Text("UNLIT")
+                    }
+                    .font(pixelFont(10))
+                    .foregroundStyle(snow)
+                    PixelButton(title: "CLOSE") {
+                        scene.closeMap()
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
         }
     }
 
