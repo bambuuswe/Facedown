@@ -95,6 +95,45 @@ enum DayPhase: String, Codable {
     case epilogue  // after the great tree is lit
 }
 
+/// One decoration placed in your garden.
+struct GardenItem: Codable, Equatable {
+    var kind: String
+    var tile: Int
+}
+
+/// Something you can place in build mode.
+struct BuildKind: Identifiable {
+    let id: String
+    let title: String
+    let sprite: String
+    let lit: String        // overlay that keeps its colours at night, or ""
+    let dusk: Bool         // true if that overlay only shows after dark
+    let price: Int
+    let solid: Bool
+    let glow: CGFloat      // radius of its glow at night, 0 for none
+    let glowHeight: CGFloat
+
+    static let catalog: [BuildKind] = [
+        BuildKind(id: "snowman", title: "Snowman", sprite: "snowman", lit: "", dusk: false, price: 4, solid: true, glow: 0, glowHeight: 0),
+        BuildKind(id: "lantern", title: "Lantern", sprite: "lantern", lit: "lantern_lit", dusk: true, price: 5, solid: true, glow: 40, glowHeight: 25),
+        BuildKind(id: "arch", title: "Light arch", sprite: "arch", lit: "arch_lit", dusk: false, price: 8, solid: false, glow: 32, glowHeight: 22),
+        BuildKind(id: "pine", title: "Little fir", sprite: "pine_2", lit: "", dusk: false, price: 3, solid: true, glow: 0, glowHeight: 0),
+        BuildKind(id: "bush", title: "Holly bush", sprite: "bush", lit: "", dusk: false, price: 2, solid: true, glow: 0, glowHeight: 0),
+        BuildKind(id: "gifts", title: "Gift pile", sprite: "giftpile", lit: "", dusk: false, price: 4, solid: true, glow: 0, glowHeight: 0),
+        BuildKind(id: "candycane", title: "Candy cane", sprite: "candycane", lit: "", dusk: false, price: 2, solid: true, glow: 0, glowHeight: 0),
+        BuildKind(id: "gnome", title: "Gnome", sprite: "gnome", lit: "", dusk: false, price: 3, solid: true, glow: 0, glowHeight: 0),
+        BuildKind(id: "paper", title: "Paper lamp", sprite: "paperlantern", lit: "paperlantern_lit", dusk: true, price: 4, solid: true, glow: 22, glowHeight: 11),
+        BuildKind(id: "fire", title: "Campfire", sprite: "campfire", lit: "campfire_lit_0", dusk: false, price: 6, solid: true, glow: 46, glowHeight: 8),
+        BuildKind(id: "bench", title: "Bench", sprite: "bench", lit: "", dusk: false, price: 3, solid: true, glow: 0, glowHeight: 0),
+        BuildKind(id: "picket", title: "Picket", sprite: "picket", lit: "", dusk: false, price: 1, solid: true, glow: 0, glowHeight: 0),
+        BuildKind(id: "hay", title: "Hay bale", sprite: "haybale", lit: "", dusk: false, price: 2, solid: true, glow: 0, glowHeight: 0)
+    ]
+
+    static func find(_ id: String) -> BuildKind? {
+        catalog.first { $0.id == id }
+    }
+}
+
 /// Some days are different.
 enum DayEvent {
     case none
@@ -106,7 +145,7 @@ enum DayEvent {
 /// Everything that survives between launches.
 struct SaveData: Codable {
     static let lastDay = 12
-    private static let key = "evergreen.save.v2"
+    private static let key = "evergreen.save.v3"
 
     var day = 1
     var phase: DayPhase = .morning
@@ -123,6 +162,14 @@ struct SaveData: Codable {
     var squarePlanted = false
     var squareLit = false
     var finaleTier = 0
+
+    // Who you are
+    var playerName = "Robin"
+    var farmName = "Evergreen Farm"
+    var look = 0
+    /// Which tutorial step you are on; 100 means finished or skipped.
+    var tutorial = 0
+    var garden: [GardenItem] = []
 
     // Things bought at the workbench
     var axe = false

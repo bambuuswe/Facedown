@@ -56,11 +56,17 @@ struct HUD: View {
     @ObservedObject var state: GameState
     let scene: GameScene
     @State private var confirmNewGame = false
+    @State private var nameText = ""
+    @State private var farmText = ""
+    @State private var lookPick = 0
 
     var body: some View {
         ZStack {
             if state.screen == .title {
                 title
+                if state.setupOpen {
+                    setupView
+                }
             } else {
                 playing
                 if let dialog = state.dialog {
@@ -167,6 +173,32 @@ struct HUD: View {
                 .foregroundStyle(snow)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            if !state.tutorialText.isEmpty && !state.buildOpen && state.dialog == nil {
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("TUTORIAL \(state.tutorialCount)")
+                            .font(pixelFont(10))
+                            .foregroundStyle(gold)
+                        Text(state.tutorialText)
+                            .font(pixelFont(12))
+                            .foregroundStyle(snow)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 4)
+                    Button {
+                        scene.skipTutorial()
+                    } label: {
+                        Text("SKIP")
+                            .font(pixelFont(10))
+                            .foregroundStyle(ink)
+                            .frame(width: 40, height: 24)
+                            .background(snow)
+                    }
+                }
+                .padding(8)
+                .background(pine.opacity(0.95))
+                .overlay(Rectangle().strokeBorder(gold, lineWidth: 2))
+            }
             if !state.toast.isEmpty {
                 Text(state.toast)
                     .font(pixelFont(14))
@@ -188,8 +220,11 @@ struct HUD: View {
                     .overlay(Rectangle().strokeBorder(snow, lineWidth: 2))
                     .allowsHitTesting(false)
             }
+            if state.buildOpen {
+                buildPalette
+            }
             HStack {
-                if state.canGoHome && state.dialog == nil && state.ending == nil && !state.mapOpen && !state.shopOpen {
+                if state.canGoHome && state.dialog == nil && state.ending == nil && !state.mapOpen && !state.shopOpen && !state.buildOpen {
                     Button {
                         scene.headHome()
                     } label: {
@@ -203,7 +238,7 @@ struct HUD: View {
                     }
                 }
                 Spacer()
-                if !state.actionTitle.isEmpty && state.dialog == nil && state.ending == nil && !state.mapOpen && !state.shopOpen {
+                if !state.actionTitle.isEmpty && state.dialog == nil && state.ending == nil && !state.mapOpen && !state.shopOpen && !state.buildOpen {
                     Button {
                         scene.performAction()
                     } label: {
@@ -276,6 +311,9 @@ struct HUD: View {
                     Text("MERRY CHRISTMAS")
                         .font(pixelFont(24))
                         .foregroundStyle(gold)
+                    Text("\(scene.save.playerName) of \(scene.save.farmName)".uppercased())
+                        .font(pixelFont(11))
+                        .foregroundStyle(snow.opacity(0.8))
                     Text(line)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -294,6 +332,128 @@ struct HUD: View {
                 .foregroundStyle(snow)
             }
             .padding(24)
+        }
+    }
+
+    // MARK: - Build mode palette
+
+    private var buildPalette: some View {
+        Panel {
+            VStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Text("DECORATE YOUR GARDEN")
+                        .font(pixelFont(13))
+                        .foregroundStyle(gold)
+                    Spacer()
+                    PixelIcon(name: "icon_coin", width: 16, height: 16)
+                    Text("\(state.coins)")
+                        .font(pixelFont(13))
+                        .foregroundStyle(snow)
+                }
+                Text("Tap a square to place. Tap a decoration to take it back for a full refund.")
+                    .font(pixelFont(10))
+                    .foregroundStyle(snow.opacity(0.8))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(BuildKind.catalog) { kind in
+                            Button {
+                                scene.selectBuild(kind.id)
+                            } label: {
+                                VStack(spacing: 2) {
+                                    Image(uiImage: UIImage(named: kind.sprite) ?? UIImage())
+                                        .interpolation(.none)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 34, height: 34)
+                                    Text(kind.title.uppercased())
+                                        .font(pixelFont(8))
+                                        .lineLimit(1)
+                                    Text("\(kind.price)")
+                                        .font(pixelFont(10))
+                                        .foregroundStyle(gold)
+                                }
+                                .foregroundStyle(snow)
+                                .frame(width: 70, height: 72)
+                                .background(state.buildSelected == kind.id ? pine : snow.opacity(0.08))
+                                .overlay(Rectangle().strokeBorder(state.buildSelected == kind.id ? gold : Color.clear, lineWidth: 2))
+                            }
+                        }
+                    }
+                }
+                PixelButton(title: "DONE") {
+                    scene.exitBuild()
+                }
+            }
+        }
+    }
+
+    // MARK: - Name and look, at the start of a game
+
+    private var setupView: some View {
+        ZStack {
+            Color.black.opacity(0.6).ignoresSafeArea()
+            Panel {
+                VStack(spacing: 12) {
+                    Text("A NEW WINTER")
+                        .font(pixelFont(20))
+                        .foregroundStyle(gold)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("YOUR NAME")
+                            .font(pixelFont(11))
+                            .foregroundStyle(snow.opacity(0.8))
+                        TextField("Robin", text: $nameText)
+                            .font(pixelFont(16))
+                            .foregroundStyle(ink)
+                            .padding(8)
+                            .background(snow)
+                            .autocorrectionDisabled()
+                            .submitLabel(.done)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("YOUR FARM'S NAME")
+                            .font(pixelFont(11))
+                            .foregroundStyle(snow.opacity(0.8))
+                        TextField("Evergreen Farm", text: $farmText)
+                            .font(pixelFont(16))
+                            .foregroundStyle(ink)
+                            .padding(8)
+                            .background(snow)
+                            .autocorrectionDisabled()
+                            .submitLabel(.done)
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("YOUR LOOK")
+                            .font(pixelFont(11))
+                            .foregroundStyle(snow.opacity(0.8))
+                        HStack(spacing: 8) {
+                            ForEach(0..<4, id: \.self) { index in
+                                Button {
+                                    lookPick = index
+                                } label: {
+                                    PixelIcon(name: "hero_\(index)_0_down_0", width: 40, height: 60)
+                                        .padding(6)
+                                        .background(lookPick == index ? pine : snow.opacity(0.08))
+                                        .overlay(Rectangle().strokeBorder(lookPick == index ? gold : Color.clear, lineWidth: 2))
+                                }
+                            }
+                        }
+                    }
+                    PixelButton(title: "BEGIN") {
+                        state.setupOpen = false
+                        scene.startNewGame(name: nameText, farm: farmText, look: lookPick)
+                    }
+                    Button {
+                        state.setupOpen = false
+                    } label: {
+                        Text("BACK")
+                            .font(pixelFont(12))
+                            .foregroundStyle(snow.opacity(0.8))
+                    }
+                }
+            }
+            .padding(.horizontal, 24)
         }
     }
 
@@ -465,20 +625,23 @@ struct HUD: View {
                 Spacer()
                 VStack(spacing: 12) {
                     if state.hasSave {
+                        Text(state.saveSummary.uppercased())
+                            .font(pixelFont(12))
+                            .foregroundStyle(gold)
                         PixelButton(title: "CONTINUE") {
                             scene.continueGame()
                         }
                         PixelButton(title: confirmNewGame ? "ERASE AND START OVER?" : "NEW WINTER", color: confirmNewGame ? berry : snow) {
                             if confirmNewGame {
                                 confirmNewGame = false
-                                scene.startNewGame()
+                                state.setupOpen = true
                             } else {
                                 confirmNewGame = true
                             }
                         }
                     } else {
                         PixelButton(title: "START") {
-                            scene.startNewGame()
+                            state.setupOpen = true
                         }
                     }
                     Text("Drag anywhere to walk. Your game saves by itself.")

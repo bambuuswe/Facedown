@@ -40,6 +40,13 @@ final class GameScene: SKScene {
     var boostLeft: TimeInterval = 0
     var rushLeft: TimeInterval = 0
     var bellCooldown: TimeInterval = 0
+
+    // Garden building and the tutorial (see GameScene+Build.swift)
+    var building = false
+    var gardenNodes: [Int: [SKNode]] = [:]
+    var baseSolid: [Bool] = []
+    let buildGrid = SKNode()
+    let farmLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private var trackDistance: CGFloat = 0
     private var soundDistance: CGFloat = 0
 
@@ -111,6 +118,7 @@ final class GameScene: SKScene {
         didSetUp = true
         backgroundColor = SKColor(red: 0.12, green: 0.16, blue: 0.3, alpha: 1)
         solid = Array(world.solid.utf8).map { $0 == 49 }
+        baseSolid = solid
         snowy = Array(world.snow.utf8).map { $0 == 49 }
         strollable = Array(world.stroll.utf8).map { $0 == 49 }
         strollTiles = strollable.indices.filter { strollable[$0] }
@@ -126,6 +134,28 @@ final class GameScene: SKScene {
         addChild(cam)
         camera = cam
         buildStatic()
+
+        // Faint squares that show where decorations can go while in build mode.
+        buildGrid.zPosition = 2
+        buildGrid.isHidden = true
+        for row in world.garden.row0...world.garden.row1 {
+            for col in world.garden.col0...world.garden.col1 {
+                let cell = SKSpriteNode(color: SKColor(red: 1, green: 0.88, blue: 0.45, alpha: 0.2), size: CGSize(width: world.tile - 1, height: world.tile - 1))
+                cell.position = CGPoint(x: (CGFloat(col) + 0.5) * world.tile, y: (CGFloat(row) + 0.5) * world.tile)
+                buildGrid.addChild(cell)
+            }
+        }
+        worldNode.addChild(buildGrid)
+
+        // Your farm's name on the board by the garden. Drawn large and shrunk so it stays crisp.
+        farmLabel.fontSize = 12
+        farmLabel.setScale(0.5)
+        farmLabel.fontColor = SKColor(red: 0.28, green: 0.17, blue: 0.1, alpha: 1)
+        farmLabel.verticalAlignmentMode = .center
+        farmLabel.horizontalAlignmentMode = .center
+        farmLabel.position = CGPoint(x: world.nameboard.x, y: world.nameboard.y + 18)
+        farmLabel.zPosition = depth(world.nameboard.y) + 1
+        worldNode.addChild(farmLabel)
 
         player.texture = texture("\(playerBase)_down_0")
         player.size = CGSize(width: 20, height: 30)
@@ -298,6 +328,9 @@ final class GameScene: SKScene {
         catNode = nil
         catFollow = 0
         slide = .zero
+        solid = baseSolid
+        gardenNodes = [:]
+        farmLabel.text = save.farmName.uppercased()
 
         if let cabin = world.props.first(where: { $0.sprite == "cabin" }) {
             addEmissive("cabin_lit", x: cabin.x, y: cabin.y, dusk: true)
@@ -307,6 +340,7 @@ final class GameScene: SKScene {
         }
         buildFromSave()
         buildLife()
+        buildGarden()
         applyWeather()
 
         player.position = CGPoint(x: world.cabinDoor.x, y: world.cabinDoor.y - 6)
@@ -327,11 +361,12 @@ final class GameScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         let dt = lastTime == 0 ? 0 : min(currentTime - lastTime, 0.05)
         lastTime = currentTime
-        let active = state.screen == .playing && state.dialog == nil && state.ending == nil && state.curtain == nil && !state.mapOpen && !state.shopOpen && !busy
+        let active = state.screen == .playing && state.dialog == nil && state.ending == nil && state.curtain == nil && !state.mapOpen && !state.shopOpen && !building && !busy
 
         if active {
             movePlayer(dt)
             updateInteraction()
+            updateTutorial()
         } else {
             if stickTouch != nil { resetStick() }
             slide = .zero
@@ -355,7 +390,7 @@ final class GameScene: SKScene {
 
     /// Which set of player sprites to draw, depending on the outfit worn.
     var playerBase: String {
-        ["player", "player_santa", "player_blue"][min(2, max(0, save.outfit))]
+        "hero_\(min(3, max(0, save.look)))_\(min(2, max(0, save.outfit)))"
     }
 
     var isStormDay: Bool {
@@ -578,7 +613,12 @@ final class GameScene: SKScene {
     private func updateCamera() {
         let halfW = size.width / 2
         let halfH = size.height / 2
-        let focus = state.screen == .title ? CGPoint(x: world.square.x, y: world.square.y + 20) : CGPoint(x: player.position.x, y: player.position.y + 10)
+        var focus = CGPoint(x: player.position.x, y: player.position.y + 10)
+        if state.screen == .title {
+            focus = CGPoint(x: world.square.x, y: world.square.y + 20)
+        } else if building {
+            focus = gardenCentre
+        }
         let x = min(max(focus.x, halfW), world.width - halfW)
         let y = min(max(focus.y, halfH), world.height - halfH)
         cam.position = CGPoint(x: x, y: y)
@@ -629,6 +669,12 @@ final class GameScene: SKScene {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if building, state.screen == .playing {
+            if let touch = touches.first {
+                buildTap(at: touch.location(in: worldNode))
+            }
+            return
+        }
         guard state.screen == .playing, state.dialog == nil, state.ending == nil, state.curtain == nil, !state.mapOpen, !state.shopOpen, !busy else { return }
         guard stickTouch == nil, let touch = touches.first else { return }
         stickTouch = touch

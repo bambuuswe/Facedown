@@ -283,6 +283,66 @@ sprites.icon_mug = ascii([".........", ".OOOOOO..", ".OBBBBOOO", ".OWWWWO.O", ".
 sprites.icon_gift = ascii(["..RR.RR..", "...RRR...", ".OOOROOO.", ".OGGRGGO.", ".RRRRRRR.", ".OGGRGGO.", ".OGGRGGO.", ".OOOOOOO."], { O: C.outline, R: C.red, G: hex("#3f8f6e") });
 sprites.icon_treat = ascii(["..OOOOO..", ".OBBBBBO.", "OBBWBWBBO", "OBBBBBBBO", "OBWBBBWBO", ".OBWWWBO.", "..OOOOO..", "........."], { O: C.outline, B: hex("#b9773a"), W: C.snow });
 
+// ---------------------------------------------------------------- garden decorations
+sprites.candycane = ascii([
+  "..OOOO....", ".ORRWWO...", "ORWOOWRO..", "OWO..ORO..", "OOO..OWO..", ".....OWO..", ".....ORO..", ".....ORO..",
+  ".....OWO..", ".....OWO..", ".....ORO..", ".....ORO..", ".....OWO..", ".....OWO..", ".....ORO..", ".....OOO..",
+], { O: C.outline, R: C.red, W: C.snow });
+sprites.gnome = ascii([
+  ".....OO.....", "....ORRO....", "....ORRO....", "...ORRRRO...", "...ORRRRO...", "..ORRRRRRO..", "..OSSSSSSO..", "..OSESSESO..",
+  "..OWWSSWWO..", "..OWWWWWWO..", ".OBWWWWWWBO.", ".OBBWWWWBBO.", ".OBBBWWBBBO.", ".OBBBBBBBBO.", "..OKKOOKKO..", "..OOO..OOO..",
+], { O: C.outline, R: C.red, S: hex("#f6cfa8"), E: hex("#2a2233"), W: C.snow, B: hex("#4a78c8"), K: hex("#5a3b2a") });
+(() => {
+  const gifts = new Canvas(20, 16);
+  const box = (x, y, w, h, c, r) => { gifts.rect(x, y, w, h, c); gifts.rect(x + w - 2, y, 2, h, mix(c, C.outline, 0.25)); gifts.rect(x + Math.floor(w / 2) - 1, y, 2, h, r); gifts.rect(x, y + Math.floor(h / 2) - 1, w, 1, r); };
+  box(1, 7, 9, 8, hex("#3f8f6e"), C.gold); box(10, 9, 9, 6, hex("#4a78c8"), C.snow); box(5, 1, 8, 7, C.red, C.gold);
+  gifts.set(8, 0, C.gold); gifts.set(9, 0, C.gold);
+  snowTop(gifts, () => 1, (x, y) => (x + y) % 3 === 0);
+  gifts.outline(C.outline);
+  sprites.giftpile = gifts;
+
+  const arch = new Canvas(36, 36), lit = new Canvas(36, 36);
+  arch.rect(3, 15, 2, 19, C.woodDark); arch.rect(31, 15, 2, 19, C.woodDark); arch.rect(3, 15, 1, 19, C.wood); arch.rect(31, 15, 1, 19, C.wood);
+  for (let y = 0; y < 20; y++) for (let x = 0; x < 36; x++) {
+    const d = Math.hypot(x - 17.5, y - 16);
+    if (d < 11.5 || d > 15.5 || y > 16) continue;
+    arch.set(x, y, FIR.tones[(x * 3 + y * 5) % 4 === 0 ? 0 : d > 14 ? 2 : 1]);
+  }
+  for (let a = 0; a <= 8; a++) {
+    const ang = Math.PI * (a / 8), x = Math.round(17.5 - Math.cos(ang) * 13.5), y = Math.round(16 - Math.sin(ang) * 13.5), c = BULBS[a % BULBS.length];
+    lit.set(x, y, mix(c, C.snow, 0.45)); lit.set(x, y + 1, c);
+  }
+  arch.rect(16, 1, 4, 3, C.red); arch.set(15, 2, C.red); arch.set(20, 2, C.red); arch.set(17, 4, C.redDark); arch.set(18, 4, C.redDark);
+  ball(arch, 4, 34.5, 3.5, 1.5, SNOWS); ball(arch, 32, 34.5, 3.5, 1.5, SNOWS);
+  arch.outline(C.outline);
+  sprites.arch = arch; sprites.arch_lit = lit;
+
+  const board = new Canvas(74, 28);
+  board.rect(9, 12, 2, 15, C.woodDark); board.rect(63, 12, 2, 15, C.woodDark); board.rect(9, 12, 1, 15, C.wood); board.rect(63, 12, 1, 15, C.wood);
+  board.rect(2, 3, 70, 14, C.woodPale); board.frame(2, 3, 70, 14, C.wood); board.rect(3, 15, 68, 1, C.woodLight);
+  for (let x = 6; x < 70; x += 13) board.rect(x, 4, 1, 12, mix(C.woodPale, C.wood, 0.4));
+  for (const x of [5, 68]) for (const y of [5, 14]) board.set(x, y, C.iron);
+  snowTop(board, (x) => 2 + (hash2(x, 1, 91) < 0.4 ? 1 : 0), (x, y) => y > 4);
+  ball(board, 10, 27, 4, 1.5, SNOWS); ball(board, 64, 27, 4, 1.5, SNOWS);
+  board.outline(C.outline);
+  sprites.nameboard = board;
+
+  const post = new Canvas(12, 20);
+  post.rect(5, 9, 2, 10, C.woodDark); post.rect(5, 9, 1, 10, C.wood);
+  post.rect(1, 3, 10, 7, C.red); post.rect(1, 3, 10, 2, hex("#ec7a6c")); post.rect(9, 3, 2, 7, C.redDark); post.rect(3, 6, 5, 1, C.outline);
+  post.rect(10, 1, 1, 4, C.gold); post.rect(8, 1, 2, 2, C.gold);
+  snowTop(post, () => 1, (x, y) => y > 4 || x > 8);
+  ball(post, 5.5, 19, 4, 1.5, SNOWS);
+  post.outline(C.outline);
+  sprites.mailbox = post;
+
+  const picket = new Canvas(16, 14);
+  for (let x = 0; x < 16; x += 4) { picket.rect(x + 1, 3, 2, 10, C.snowMid); picket.rect(x + 1, 2, 2, 1, C.snow); picket.set(x + 1, 1, C.snow); picket.rect(x + 2, 3, 1, 10, C.snowShade); }
+  picket.rect(0, 5, 16, 1, C.snowShade); picket.rect(0, 9, 16, 1, C.snowShade);
+  picket.outline(C.outline);
+  sprites.picket = picket;
+})();
+
 // ---------------------------------------------------------------- themed joystick
 (() => {
   const n = 46, cv = new Canvas(n, n), c = 22.5;

@@ -22,6 +22,7 @@ fill(3, 42, 40, 43, "p");   // middle street, out to the lake
 fill(5, 53, 50, 54, "p");   // south street, out to the barn
 fill(8, 60, 31, 61, "p");   // market row
 fill(46, 14, 47, 31, "p");  // forest trail
+fill(6, 12, 6, 13, "p");    // path into your garden
 fill(14, 38, 25, 47, "c");  // village square
 
 const streamY = (px) => 24.5 * T + 9 * Math.sin(px / 37) + 5 * Math.sin(px / 13 + 1);
@@ -40,6 +41,7 @@ const LANTERNS = [[18, 14], [21, 19], [18, 28], [21, 35], [18, 50], [21, 50], [8
 const FENCES = [[15, 36], [22, 36], [3, 46], [7, 46], [15, 50], [22, 50]];
 const LOT = { x0: 22, y0: 2, x1: 37, y1: 19, gate: [10, 11], cols: [24, 27, 30, 33, 36], rows: [5, 9, 13, 17] };
 const PEN = { x0: 41, y0: 57, x1: 51, y1: 63, gate: 46 };
+const GARDEN = { x0: 2, y0: 13, x1: 10, y1: 20, gate: 6 };
 const GIANT = [12, 16];
 const SQUARE_TREE = { x: 320, y: 43 * T - 4 };
 const POLES = [[14, 38], [25, 38], [14, 47], [25, 47]];
@@ -168,6 +170,9 @@ for (let x = LOT.x0; x <= LOT.x1; x++) { fenceH(x, LOT.y0); fenceH(x, LOT.y1); }
 for (let y = LOT.y0 + 1; y < LOT.y1; y++) { if (!LOT.gate.includes(y)) fenceV(LOT.x0, y); fenceV(LOT.x1, y); }
 for (let x = PEN.x0; x <= PEN.x1; x++) { if (x !== PEN.gate) fenceH(x, PEN.y0); fenceH(x, PEN.y1); }
 for (let y = PEN.y0 + 1; y < PEN.y1; y++) { fenceV(PEN.x0, y); fenceV(PEN.x1, y); }
+for (let x = GARDEN.x0; x <= GARDEN.x1; x++) { if (x !== GARDEN.gate) fenceH(x, GARDEN.y0); fenceH(x, GARDEN.y1); }
+for (let y = GARDEN.y0 + 1; y < GARDEN.y1; y++) { fenceV(GARDEN.x0, y); fenceV(GARDEN.x1, y); }
+reserve(GARDEN.x0 - 1, GARDEN.y0 - 2, GARDEN.x1 + 1, GARDEN.y1 + 1);
 for (const [fx, fy] of FENCES) for (let i = 0; i < 3; i++) fenceH(fx + i, fy);
 reserve(LOT.x0 - 1, LOT.y0 - 1, LOT.x1 + 1, LOT.y1 + 1);
 reserve(PEN.x0 - 1, PEN.y0 - 3, PEN.x1 + 1, PEN.y1 + 1);
@@ -221,6 +226,8 @@ reserve(3, 3, 15, 12);
 addProp("signpost", 18.2 * T, 10 * T - 2); block(18, 9);
 addProp("crates", 13.8 * T, 9 * T - 1); block(13, 8);
 addProp("workbench", 8.6 * T, 9 * T - 2); block(8, 8);
+addProp("nameboard", 9.7 * T, 13 * T - 1); for (let x = 8; x <= 11; x++) block(x, 12);
+addProp("mailbox", 4.6 * T, 13 * T - 2); block(4, 12);
 
 const HOUSE_SHAPES = ["eave", "gable", "eave", "gable", "eave", "gable", "eave", "gable", "eave", "gable", "eave"];
 const houses = HOUSE_TILES.map(([hx, hy], i) => {
@@ -386,9 +393,12 @@ const world = {
   deerZone: zone(39, 3, 54, 20),
   cat: { x: 17.6 * T, y: sk(46 * T + 7) },
   workshop: { x: 8.6 * T, y: sk(9 * T + 8) },
+  garden: { col0: GARDEN.x0 + 1, col1: GARDEN.x1 - 1, row0: H - 1 - (GARDEN.y1 - 1), row1: H - 1 - (GARDEN.y0 + 1) },
+  gardenGate: { x: (GARDEN.gate + 0.5) * T, y: sk(13 * T + 4) },
+  nameboard: { x: 9.7 * T, y: sk(13 * T - 1) },
   chapelDoor: { x: chapelPos.x, y: sk(71 * T + 8) },
   stalls: ["treat", "gift", "cocoa"].map((kind, i) => ({ kind, x: (STALLS[i] + 1.5) * T, y: sk(60 * T + 8) })),
-  labels: [["Your farm", 8, 3], ["Tree lot", 30, 1], ["Old forest", 46, 6], ["Square", 19.5, 37], ["Lake", 47.5, 40], ["Barn", 46, 50], ["Market", 19.5, 57], ["Chapel", 19.5, 73]]
+  labels: [["Your farm", 8, 3], ["Your garden", 6, 21.5], ["Tree lot", 30, 1], ["Old forest", 46, 6], ["Square", 19.5, 37], ["Lake", 47.5, 40], ["Barn", 46, 50], ["Market", 19.5, 57], ["Chapel", 19.5, 73]]
     .map(([text, tx, ty]) => ({ text, x: tx / W, y: ty / H })),
 };
 fs.writeFileSync(path.join(ART, "world.json"), JSON.stringify(world));
@@ -449,7 +459,7 @@ const drawn = props.map((p) => ({ ...p }));
 for (const l of lights) for (const p of l.parts) if (p.sprite) drawn.push({ sprite: p.sprite, x: p.x, y: PH - p.y });
 lot.forEach((s, i) => drawn.push({ sprite: `fir_${i % 3}${Math.floor(i / 3) % 3}${i % 2}`, x: s.x, y: PH - s.y + 2 }));
 drawn.push({ sprite: "giant", x: world.giant.x, y: PH - world.giant.y + 2 });
-drawn.push({ sprite: "villager_3_down_0", x: world.customer.x, y: PH - world.customer.y }, { sprite: "player_down_0", x: world.cabinDoor.x, y: PH - world.cabinDoor.y + 4 });
+drawn.push({ sprite: "villager_3_down_0", x: world.customer.x, y: PH - world.customer.y }, { sprite: "hero_0_0_down_0", x: world.cabinDoor.x, y: PH - world.cabinDoor.y + 4 });
 for (const v of vendors) drawn.push({ sprite: v.sprite + "_down_0", x: v.x, y: PH - v.y });
 [["villager_0_side_1", 150, 510], ["villager_5_down_1", 322, 600], ["villager_8_side_0", 420, 690], ["kid_2_down_1", 280, 660], ["villager_6_down_0", 300, 975], ["villager_1_side_1", 200, 972],
   ["kid_0_side_1", 730, 630], ["kid_1_side_0", 800, 670], ["sheep_0", 700, 960], ["sheep_1", 760, 985], ["sheep_0", 790, 945], ["deer_0", 690, 150], ["deer_1", 820, 230], ["cat_0", world.cat.x, PH - world.cat.y],
@@ -488,6 +498,7 @@ zoom(day, "lake.png", 590, 500, 320, 300, 3);
 zoom(day, "market.png", 100, 880, 330, 300, 3);
 zoom(night, "market_night.png", 100, 880, 330, 300, 3);
 zoom(day, "forest.png", 600, 60, 310, 300, 3);
+zoom(day, "garden.png", 16, 60, 310, 290, 3);
 zoom(day, "barn.png", 600, 780, 310, 280, 3);
 const mini = (() => { const m = new Canvas(0, 0); return m; })();
 console.log("sprites", Object.keys(sprites).length, "props", props.length, "lights", lights.length, "cost", lights.reduce((a, l) => a + l.cost, 0));

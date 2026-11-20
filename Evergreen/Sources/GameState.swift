@@ -69,6 +69,12 @@ final class GameState: ObservableObject {
     @Published var treats = 0
     @Published var canGoHome = false
     @Published var soundOn = true
+    @Published var setupOpen = false
+    @Published var buildOpen = false
+    @Published var buildSelected = "snowman"
+    @Published var tutorialText = ""
+    @Published var tutorialCount = ""
+    @Published var saveSummary = ""
     @Published var mapInfo = MapInfo()
     @Published var toast = ""
 

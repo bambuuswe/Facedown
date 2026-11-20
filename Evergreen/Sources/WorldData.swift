@@ -87,6 +87,13 @@ struct WorldStall: Codable {
     var cg: CGPoint { CGPoint(x: x, y: y) }
 }
 
+struct WorldGarden: Codable {
+    let col0: Int
+    let col1: Int
+    let row0: Int
+    let row1: Int
+}
+
 struct WorldData: Codable {
     let width: CGFloat
     let height: CGFloat
@@ -116,6 +123,9 @@ struct WorldData: Codable {
     let workshop: WorldPoint
     let chapelDoor: WorldPoint
     let stalls: [WorldStall]
+    let garden: WorldGarden
+    let gardenGate: WorldPoint
+    let nameboard: WorldPoint
 
     static func load() -> WorldData {
         guard let url = Bundle.main.url(forResource: "world", withExtension: "json"),

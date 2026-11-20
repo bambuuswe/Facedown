@@ -17,6 +17,7 @@ enum Action: Equatable {
     case workshop
     case warm(Int)      // light index of a burning fire
     case bell
+    case build
 }
 
 /// The working day: customers, wishes, chopping, deliveries, lights and the finale.
@@ -38,9 +39,16 @@ extension GameScene {
 
     // MARK: - Menu commands
 
-    func startNewGame() {
+    func startNewGame(name: String, farm: String, look: Int) {
         save = SaveData.newGame(world: world)
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanFarm = farm.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cleanName.isEmpty { save.playerName = String(cleanName.prefix(12)) }
+        if !cleanFarm.isEmpty { save.farmName = String(cleanFarm.prefix(18)) }
+        save.look = min(3, max(0, look))
         save.store()
+        building = false
+        state.buildOpen = false
         state.hasSave = true
         state.ending = nil
         boostLeft = 0
@@ -54,7 +62,7 @@ extension GameScene {
         showDialog(Dialog(
             speaker: "Evergreen Farm",
             portrait: "\(playerBase)_down_0",
-            text: "Twelve days until Christmas Eve, and the village below is dark and snowed in.\n\nSell your firs by day. Spend what you earn on lights by night. The workbench by your cabin sells tools.",
+            text: "Welcome to \(save.farmName), \(save.playerName).\n\nTwelve days until Christmas Eve, and the village below is dark and snowed in. Sell your firs by day. Spend what you earn on lights by night.",
             button: "Let's begin"))
     }
 
@@ -68,6 +76,9 @@ extension GameScene {
 
     func showTitle() {
         resetStick()
+        building = false
+        buildGrid.isHidden = true
+        state.buildOpen = false
         state.mapOpen = false
         state.shopOpen = false
         state.screen = .title
@@ -308,6 +319,7 @@ extension GameScene {
 
     func refreshHUD() {
         state.dateLabel = "DEC \(12 + save.day)"
+        state.saveSummary = "\(save.farmName) · Dec \(12 + save.day)"
         state.coins = save.coins
         state.hearts = save.hearts
         state.litCount = save.litCount
@@ -451,6 +463,10 @@ extension GameScene {
 
         // Places and animals.
         offer(.workshop, world.workshop.cg, 16)
+        offer(.build, world.gardenGate.cg, 16)
+        if insideGarden(here) {
+            offer(.build, here, 4)
+        }
         for stall in world.stalls {
             offer(.buy(stall.kind), stall.cg, 15)
         }
@@ -500,6 +516,7 @@ extension GameScene {
             case .workshop: title = "Workbench"
             case .warm: title = "Warm up"
             case .bell: title = "Ring bell"
+            case .build: title = "Decorate"
             case .buy(let kind):
                 title = kind == "cocoa" ? "Cocoa" : (kind == "gift" ? "Gift" : "Treat")
                 cost = price(of: kind)
@@ -534,6 +551,7 @@ extension GameScene {
         case .workshop: openShop()
         case .warm: warmUp()
         case .bell: ringBell()
+        case .build: enterBuild()
         }
     }
 
@@ -558,12 +576,12 @@ extension GameScene {
             dialog = Dialog(
                 speaker: "Mayor Birgit",
                 portrait: "mayor_down_0",
-                text: "It's Christmas Eve! The village needs its great tree.\n\nBring the big fir from beside your lane down to the square, would you?",
+                text: "It's Christmas Eve, \(save.playerName)! The village needs its great tree.\n\nBring the big fir from beside your lane down to the square, would you?",
                 button: "With pleasure")
         } else {
             let house = world.houses[todayHouse]
             let ask = SaveData.speaksInRiddles(on: save.day) ? todayWish.riddle : todayWish.sentence
-            var text = "Good morning! \(ask)\n\nI live in \(house.hint)."
+            var text = "Good morning, \(save.playerName)! \(ask)\n\nI live in \(house.hint)."
             switch todayEvent {
             case .rush: text += "\n\nAnd I'm in a hurry. Bring it within two minutes and there's a bonus in it."
             case .storm: text += "\n\nDreadful weather. I'll pay extra for your trouble."
@@ -789,8 +807,10 @@ extension GameScene {
                 guard let self = self else { return }
                 self.save.day = next
                 self.save.phase = .morning
+                if self.save.tutorial < 100 { self.save.tutorial = 100 }
                 self.save.store()
                 self.rushLeft = 0
+                self.state.tutorialText = ""
                 self.rebuildDynamic()
                 // Wake at dawn, so last night's lights are still glowing as you step out.
                 self.night = 0.55
@@ -855,7 +875,7 @@ extension GameScene {
             ]
         } else if save.phase == .evening {
             lines = [
-                "The tree looks wonderful. Thank you again!",
+                "The tree looks wonderful. Thank you again, \(save.playerName)!",
                 "Have you seen the lanterns? The village feels warmer already.",
                 "My little ones can't stop staring at the star on top.",
                 "It finally feels like Christmas around here.",
@@ -874,7 +894,8 @@ extension GameScene {
             ]
         } else {
             lines = [
-                "Lovely morning for it. I'll be by for a tree one of these days.",
+                "Lovely morning for it, \(save.playerName). I'll be by for a tree one of these days.",
+                "I walked past \(save.farmName) this morning. That garden of yours could use a snowman.",
                 "The village is so dark this year. A few lanterns would do wonders.",
                 "Have you seen the sheep at the barn? They like a scratch behind the ears.",
                 "They say there's a campfire spot up the forest trail.",
